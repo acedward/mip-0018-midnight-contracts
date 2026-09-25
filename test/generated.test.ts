@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_INTEGER_LEN,
   EVENT_NAME,
+  HEADER_SIZE,
   ONE_PART_VALUE_SIZE,
   PAYLOAD_SIZE,
   STRANGER_EMITTER_SECRET,
@@ -46,7 +47,12 @@ interface MatrixEvent {
   key: string;
   valType: number;
   len: number;
+  /** UC-1: the events (parts) the declaration's package takes. */
+  parts: number;
+  /** The value region: the value, NUL-padded to 256·parts − 68 bytes. */
   value: string;
+  /** The exact package bytes, 256·parts. */
+  payload: string;
   text: string | null;
 }
 interface MatrixStep {
@@ -79,13 +85,16 @@ describe('generated-matrix.json', () => {
     expect(matrix.rows.map((row) => row.id)).toEqual(referenceSet.rows.map((row) => row.id));
   });
 
-  it('keeps every one-part value within 188 bytes (UC-1) and always declares a val-type', () => {
+  it('sizes every package for its value (UC-1) and always declares a val-type', () => {
     for (const row of matrix.rows) {
       for (const step of row.steps) {
         for (const event of step.events ?? []) {
           const where = `${row.id}/${step.circuit}/${event.key}`;
-          expect(event.len, where).toBeLessThanOrEqual(ONE_PART_VALUE_SIZE);
-          expect(event.value.length, where).toBe(ONE_PART_VALUE_SIZE * 2);
+          // UC-1: the package holds its value; a long value takes more parts.
+          expect(event.parts, where).toBe(Math.max(1, Math.ceil((HEADER_SIZE + event.len) / PAYLOAD_SIZE)));
+          expect(event.payload.length, where).toBe(event.parts * PAYLOAD_SIZE * 2);
+          expect(event.value.length, where).toBe((event.parts * PAYLOAD_SIZE - HEADER_SIZE) * 2);
+          if (event.parts === 1) expect(event.len, where).toBeLessThanOrEqual(ONE_PART_VALUE_SIZE);
           // MIP section 2.1: 0..5 are defined, 6..255 are reserved.
           expect(event.valType, where).toBeGreaterThanOrEqual(0);
           expect(event.valType, where).toBeLessThanOrEqual(VAL_TYPE_NULL);
@@ -213,13 +222,20 @@ for (const row of matrix.rows) {
       for (const step of emitting) {
         const call = await instance.call(step.circuit);
         const expectedEvents = step.events ?? [];
-        expect(call.events.length, `${row.id}.${step.circuit} event count`).toBe(expectedEvents.length);
+        const parts = expectedEvents.reduce((n, e) => n + e.parts, 0);
+        expect(call.events.length, `${row.id}.${step.circuit} event count`).toBe(parts);
+        // One declaration per call is ONE package (UC-1): compare the whole package bytes.
+        // A circuit that still folds several one-part declarations is compared per event.
+        const actuals = expectedEvents.length === 1 ? call.packages : call.events;
+        expect(actuals.length, `${row.id}.${step.circuit} declarations`).toBe(expectedEvents.length);
 
         for (const [index, expected] of expectedEvents.entries()) {
-          const actual = call.events[index]!;
+          const actual = actuals[index]!;
           const where = `${row.id}.${step.circuit}[${index}] (${expected.key})`;
           expect(actual.eventName, where).toBe(EVENT_NAME);
-          expect(actual.payload.length, where).toBe(PAYLOAD_SIZE);
+          expect(actual.parts, where).toBe(expected.parts);
+          expect(actual.payload.length, where).toBe(PAYLOAD_SIZE * expected.parts);
+          expect(hex(actual.payload), where).toBe(expected.payload);
           expect(hex(actual.domainSep), where).toBe(expected.domainSep);
           expect(actual.kind, where).toBe(expected.kind);
           expect(actual.keyText, where).toBe(expected.key);

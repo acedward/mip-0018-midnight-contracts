@@ -70,6 +70,159 @@
       }
     },
     {
+      "name": "publishRaw2",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "domainSep",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "kind",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "key",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "valType",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "valLen",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 65535
+          }
+        },
+        {
+          "name": "valueHead",
+          "type": {
+            "type-name": "Bytes",
+            "length": 188
+          }
+        },
+        {
+          "name": "part1",
+          "type": {
+            "type-name": "Bytes",
+            "length": 256
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "publishRaw3",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "domainSep",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "kind",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "key",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "valType",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "valLen",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 65535
+          }
+        },
+        {
+          "name": "valueHead",
+          "type": {
+            "type-name": "Bytes",
+            "length": 188
+          }
+        },
+        {
+          "name": "part1",
+          "type": {
+            "type-name": "Bytes",
+            "length": 256
+          }
+        },
+        {
+          "name": "part2",
+          "type": {
+            "type-name": "Bytes",
+            "length": 256
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "publishLongFixture3",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "publishLongFixture2",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
       "name": "publishLegacyName",
       "pure": false,
       "proof": true,

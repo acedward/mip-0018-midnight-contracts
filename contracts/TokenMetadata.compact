@@ -36,6 +36,11 @@
 // declaration (a one-part `emitTokenMetadata`, or `emitHead` followed by its
 // `emitPart`s), and the deployer sends one call per transaction.
 //
+// A LONG VALUE (more than 188 bytes) is one circuit call that emits every part,
+// in order: `emitHead(…, valLen, first 188 bytes)`, then `emitPart(next 256)` as
+// many times as needed — all in one intent, guaranteed ([Y] §5). With literal
+// arguments the whole package costs a few rows (see ./generated/).
+//
 // WHO MAY EMIT. The emitter secret (spec 00024 Q12): the contract's constructor
 // stores `emitterSecretHashOf(secret)` in a sealed ledger field
 // (`initializeEmitter`), and every emitting circuit calls `assertEmitter()`
@@ -200,6 +205,24 @@ module TokenMetadata {
       // Uint-to-Bytes cast: the first byte is the least significant (little-endian).
       payload: Bytes[...domainSep, kind, ...key, valType, ...(valLen as Bytes<2>), ...valueHead]
     });
+  }
+
+  /**
+   * @description Emits one CONTINUATION part of a package: the next 256 bytes of
+   * the value, NUL-padded after its end. Call it only right after `emitHead` (or
+   * another `emitPart`) in the SAME circuit call, so every part of the package is
+   * in one intent and one execution phase — guaranteed, as the Multi-Part Event
+   * rule recommends ([Y] §5). The reader concatenates the parts in emission order
+   * and keeps all 256 bytes of each; no byte of a part is framing ([Y] §4).
+   *
+   * A value of `valLen` bytes takes `ceil((68 + valLen) / 256)` parts: the head
+   * holds the first 188 bytes and each part the next 256. The bytes after the
+   * value in the last part are ignored by a consumer; emitters SHOULD zero them.
+   *
+   * @param {Bytes<256>} part - The next 256 bytes of the value.
+   */
+  export circuit emitPart(part: Bytes<256>): [] {
+    emit(Misc { name: EVENT_NAME(), payload: part });
   }
 
   /**

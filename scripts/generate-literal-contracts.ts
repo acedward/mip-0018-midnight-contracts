@@ -44,8 +44,17 @@ const OUT_CONTRACTS = path.join(ROOT, 'contracts', 'generated');
 const OUT_MATRIX = path.join(ROOT, 'deployments', 'generated-matrix.json');
 
 const KEY_SIZE = 32;
+/** UC-1: one event's payload is one part of a package. */
+const PART_SIZE = 256;
+/** UC-1: domainSep 32 + kind 1 + key 32 + val-type 1 + val-len 2 (little-endian). */
+const HEADER_SIZE = 68;
 /** UC-1: one event (a one-part package) holds 188 value bytes after the 68-byte header. */
-const VALUE_SIZE = 188;
+const VALUE_SIZE = PART_SIZE - HEADER_SIZE;
+/** UC-1: `val-len` is a `Uint<16>`. */
+const MAX_VAL_LEN = 0xffff;
+
+/** UC-1: the parts a value of `len` bytes needs, `ceil((68 + len) / 256)`, at least 1. */
+const partsFor = (len: number): number => Math.max(1, Math.ceil((HEADER_SIZE + len) / PART_SIZE));
 const DOMAIN_SIZE = 32;
 
 /**
@@ -294,10 +303,15 @@ interface Emit {
   key: string;
   /** MIP section 2.1 — how a consumer reads `value` */
   valType: number;
-  /** the meaningful value bytes (before NUL padding to 189) */
+  /** the meaningful value bytes (before NUL padding to the end of the package) */
   value: Uint8Array;
+  /** the value region of the package: `value`, NUL-padded to 256·parts − 68 bytes */
   valueHex: string;
   len: number;
+  /** UC-1: how many events (parts) the declaration's package takes */
+  parts: number;
+  /** the exact package bytes, 256·parts, that one circuit call emits */
+  payloadHex: string;
   /** printable form for the matrix file */
   text: string | null;
 }
@@ -313,22 +327,35 @@ const makeEmit = (
   text: string | null,
   piece?: string,
 ): Emit => {
-  if (value.length > VALUE_SIZE) {
-    throw new Error(`${row.id}: value for "${key}" is ${value.length} bytes (max ${VALUE_SIZE})`);
+  if (value.length > MAX_VAL_LEN) {
+    throw new Error(`${row.id}: value for "${key}" is ${value.length} bytes (UC-1 val-len max ${MAX_VAL_LEN})`);
   }
   assertKeyIsValid(`${row.id}/${key}`, key);
   assertValueMatchesType(`${row.id}/${key}`, valType, value);
   const domain = domainFor(row, piece);
+  const domainSep = padTo(utf8(domain), DOMAIN_SIZE);
+  const parts = partsFor(value.length);
+  // The package exactly as the circuit emits it (UC-1): header, value, NUL padding.
+  const payload = new Uint8Array(parts * PART_SIZE);
+  payload.set(domainSep, 0);
+  payload[32] = row.kind;
+  payload.set(padTo(utf8(key), KEY_SIZE), 33);
+  payload[65] = valType;
+  payload[66] = value.length & 0xff; // val-len, little-endian
+  payload[67] = value.length >> 8;
+  payload.set(value, HEADER_SIZE);
   return {
     piece: piece ?? null,
     domain,
-    domainSepHex: hex(padTo(utf8(domain), DOMAIN_SIZE)),
+    domainSepHex: hex(domainSep),
     kind: row.kind,
     key,
     valType,
     value,
-    valueHex: hex(padTo(value, VALUE_SIZE)),
+    valueHex: hex(payload.subarray(HEADER_SIZE)),
     len: value.length,
+    parts,
+    payloadHex: hex(payload),
     text,
   };
 };
@@ -418,7 +445,14 @@ function planSteps(row: Row): PlannedStep[] {
 
   const push = (emits: Emit[], op: string, piece: string | null, publish: string | null): void => {
     const keys = new Set(emits.map((e) => e.key));
-    if (group && (group.piece !== piece || emits.some((e) => group!.keys.has(e.key)) || publish !== null)) {
+    // UC-1: a multi-part declaration is its own package, so it always gets a circuit
+    // (one call, one intent) of its own — never shared with another declaration.
+    const long = emits.some((e) => e.parts > 1);
+    const groupIsLong = group !== null && group.emits.some((e) => e.parts > 1);
+    if (
+      group &&
+      (group.piece !== piece || emits.some((e) => group!.keys.has(e.key)) || publish !== null || long || groupIsLong)
+    ) {
       flush();
     }
     if (!group) group = { emits: [], ops: [], piece, keys: new Set(), publish };
@@ -517,18 +551,40 @@ const VAL_TYPE_NAME: Record<number, string> = {
 const emitCall = (emit: Emit): string => {
   const domain = byteLiteral(utf8(emit.domain), DOMAIN_SIZE);
   const key = byteLiteral(utf8(emit.key), KEY_SIZE);
-  const value = byteLiteral(emit.value, VALUE_SIZE);
-  const shown =
+  const full =
     emit.valType === VAL_TYPE_NULL
       ? 'Null — the current value is cleared, the history is not'
       : emit.text === null
         ? '<bytes>'
         : JSON.stringify(emit.text);
-  return `  // ${emit.piece ? `${emit.piece}: ` : ''}${emit.key} = ${shown} (val-type ${emit.valType} ${
+  // Keep the comment readable: a long value is spelled out in the literals below anyway.
+  const shown = full.length > 120 ? `${full.slice(0, 117)}…` : full;
+  const comment = `  // ${emit.piece ? `${emit.piece}: ` : ''}${emit.key} = ${shown} (val-type ${emit.valType} ${
     VAL_TYPE_NAME[emit.valType]
-  }, val-len ${emit.len})
-  TM_emitTokenMetadata(${domain}, ${emit.kind}, ${key}, ${emit.valType}, ${emit.len}, ${value});`;
+  }, val-len ${emit.len}${emit.parts > 1 ? `, ${emit.parts} parts` : ''})`;
+  if (emit.parts === 1) {
+    return `${comment}
+  TM_emitTokenMetadata(${domain}, ${emit.kind}, ${key}, ${emit.valType}, ${emit.len}, ${byteLiteral(emit.value, VALUE_SIZE)});`;
+  }
+  // UC-1 multi-part: ONE call emits the head (header + the first 188 value bytes) and then
+  // every 256-byte continuation part, in order, in one intent ([Y] §5). All literal.
+  const lines = [
+    comment,
+    `  TM_emitHead(${domain}, ${emit.kind}, ${key}, ${emit.valType}, ${emit.len}, ${byteLiteral(
+      emit.value.subarray(0, VALUE_SIZE),
+      VALUE_SIZE,
+    )});`,
+  ];
+  for (let offset = VALUE_SIZE, part = 2; offset < emit.value.length; offset += PART_SIZE, part += 1) {
+    lines.push(`  // part ${part} of ${emit.parts}`);
+    lines.push(`  TM_emitPart(${byteLiteral(emit.value.subarray(offset, offset + PART_SIZE), PART_SIZE)});`);
+  }
+  return lines.join('\n');
 };
+
+/** The events (parts) a step emits: one per one-part declaration, `parts` per long one. */
+const eventsOf = (step: Extract<PlannedStep, { kind: 'emit' }>): number =>
+  step.emits.reduce((n, e) => n + e.parts, 0);
 
 const emitCircuit = (step: Extract<PlannedStep, { kind: 'emit' }>, guard: string | null): string => {
   const body = step.emits.map(emitCall).join('\n');
@@ -536,9 +592,9 @@ const emitCircuit = (step: Extract<PlannedStep, { kind: 'emit' }>, guard: string
     ? `  assert(!${guard}, "TokenMetadata: already published");\n  ${guard} = true;\n`
     : '';
   return `/**
- * @description ${step.sourceOps.join(' + ')} — ${step.emits.length} TokenMetadata event${
-    step.emits.length === 1 ? '' : 's'
-  }, every byte a compile-time literal.
+ * @description ${step.sourceOps.join(' + ')} — ${eventsOf(step)} TokenMetadata event${
+    eventsOf(step) === 1 ? '' : 's'
+  }${step.emits.some((e) => e.parts > 1) ? ` (one declaration in ${eventsOf(step)} parts, one intent)` : ''}, every byte a compile-time literal.
  */
 export circuit ${step.circuit}(): [] {
   TM_assertEmitter();
@@ -560,7 +616,7 @@ const HEADER = (row: Row, planned: PlannedStep[]): string => `// SPDX-License-Id
 // whose hash the constructor stores) can call an emitting circuit.
 //
 // Circuits the deployment calls, in order:
-${planned.map((s) => `//   ${s.circuit}${s.kind === 'emit' ? ` (${s.emits.length} event${s.emits.length === 1 ? '' : 's'})` : ''}`).join('\n')}
+${planned.map((s) => `//   ${s.circuit}${s.kind === 'emit' ? ` (${eventsOf(s)} event${eventsOf(s) === 1 ? '' : 's'})` : ''}`).join('\n')}
 
 pragma language_version >= 0.26.0;
 
@@ -876,7 +932,7 @@ for (const row of rows) {
   }
   const file = path.join(OUT_CONTRACTS, `${row.id}.compact`);
   writeFileSync(file, source, 'utf8');
-  const eventCount = planned.reduce((n, s) => n + (s.kind === 'emit' ? s.emits.length : 0), 0);
+  const eventCount = planned.reduce((n, s) => n + (s.kind === 'emit' ? eventsOf(s) : 0), 0);
   console.log(
     `${row.id.padEnd(7)} ${row.template.padEnd(22)} ${String(planned.length).padStart(2)} transactions, ${String(
       eventCount,
@@ -915,7 +971,9 @@ for (const row of rows) {
               key: e.key,
               valType: e.valType,
               len: e.len,
+              parts: e.parts,
               value: e.valueHex,
+              payload: e.payloadHex,
               text: e.text,
             })),
           }

@@ -462,6 +462,78 @@ describe('the MIP payload layout (UC-1)', () => {
     });
   });
 
+  // ---- UC-1 multi-part: one call, one intent, one package ------------------
+  const LONG3 = "MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-001";
+  const LONG2 = "MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zer";
+
+  it('merges a literal three-part declaration into ONE package of 768 bytes (68 + 700)', async () => {
+    const c = await probe();
+    const { events, packages } = await c.call('publishLongFixture3');
+    expect(events).toHaveLength(3); // three Misc events …
+    expect(packages).toHaveLength(1); // … one package ([Y] §4: one contract, one intent, one name)
+    const [pkg] = packages;
+    expect(pkg.parts).toBe(3);
+    expect(pkg.payload).toHaveLength(768);
+    expect(pkg.len).toBe(700);
+    expect([pkg.payload[66], pkg.payload[67]]).toEqual([0xbc, 0x02]);
+    expect(pkg.valueText).toBe(LONG3);
+    expect(pkg.trailing).toHaveLength(0); // 700 bytes fill the package exactly
+    // No hidden framing: part 2 is the value's bytes 188..443, verbatim.
+    expect(new TextDecoder().decode(events[1].payload)).toBe(LONG3.slice(188, 444));
+    expect(validateTokenMetadataEvent(pkg)).toEqual({ outcome: 'accepted' });
+    // Read on its own, the head is a one-part package that does not hold its value.
+    expect(validateTokenMetadataEvent(events[0])).toEqual({ outcome: 'rejected', reason: 'val_len_beyond_package' });
+  });
+
+  it('keeps the trailing zeros of the last part: a 300-byte value in two parts', async () => {
+    const c = await probe();
+    const { packages } = await c.call('publishLongFixture2');
+    expect(packages).toHaveLength(1);
+    const [pkg] = packages;
+    expect(pkg.parts).toBe(2);
+    expect(pkg.payload).toHaveLength(512); // all 256 bytes of every part kept ([Y] §4)
+    expect(pkg.len).toBe(300);
+    expect(pkg.valueText).toBe(LONG2);
+    expect(pkg.trailing).toHaveLength(512 - 68 - 300);
+    expect(pkg.trailing.every((b) => b === 0)).toBe(true);
+    expect(validateTokenMetadataEvent(pkg)).toEqual({ outcome: 'accepted' });
+  });
+
+  it('rejects a declared length beyond the package, and accepts one that exactly fills it', async () => {
+    const c = await probe();
+    const head = new Uint8Array(ONE_PART_VALUE_SIZE).fill(0x61);
+    const part = new Uint8Array(PAYLOAD_SIZE).fill(0x62);
+    const two = (valLen: number) =>
+      c.call('publishRaw2', pad(32, 'umbra:probe'), BigInt(KIND_SHIELDED), pad(32, 'description'),
+        BigInt(VAL_TYPE_STRING), BigInt(valLen), head, part);
+    // 68 + 444 = 512: exactly two parts.
+    const full = (await two(444)).packages[0];
+    expect(full.parts).toBe(2);
+    expect(full.valueBytes).toHaveLength(444);
+    expect(validateTokenMetadataEvent(full)).toEqual({ outcome: 'accepted' });
+    // 68 + 445 > 512: one byte the package does not hold.
+    expect(validateTokenMetadataEvent((await two(445)).packages[0])).toEqual({
+      outcome: 'rejected',
+      reason: 'val_len_beyond_package',
+    });
+    const three = await c.call('publishRaw3', pad(32, 'umbra:probe'), BigInt(KIND_SHIELDED),
+      pad(32, 'description'), BigInt(VAL_TYPE_STRING), BigInt(MAX_VAL_LEN), head, part, part);
+    expect(three.packages[0].parts).toBe(3);
+    expect(validateTokenMetadataEvent(three.packages[0])).toEqual({ outcome: 'rejected', reason: 'val_len_beyond_package' });
+  });
+
+  it('ignores non-zero bytes after a multi-part value (MIP; spec 00024 Q11)', async () => {
+    const c = await probe();
+    const head = new Uint8Array(ONE_PART_VALUE_SIZE).fill(0x61);
+    const part = new Uint8Array(PAYLOAD_SIZE).fill(0x5a); // bytes 188.. of the value region
+    part.fill(0x62, 0, 12); // the value's last 12 bytes: 188 + 12 = 200
+    const { packages } = await c.call('publishRaw2', pad(32, 'umbra:probe'), BigInt(KIND_SHIELDED),
+      pad(32, 'description'), BigInt(VAL_TYPE_STRING), 200n, head, part);
+    expect(packages[0].valueBytes).toHaveLength(200);
+    expect(packages[0].trailing.every((b) => b === 0x5a)).toBe(true);
+    expect(validateTokenMetadataEvent(packages[0])).toEqual({ outcome: 'accepted' });
+  });
+
   it('counts its publish calls in ledger state', async () => {
     const c = await probe();
     expect(ledger(c.state as never)._calls).toBe(0n);

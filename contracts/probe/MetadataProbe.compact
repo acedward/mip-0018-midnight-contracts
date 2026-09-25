@@ -6,6 +6,9 @@
 // a one-part package at the documented offsets (domainSep 0, kind 32, key 33,
 // val-type 65, val-len 66..67 little-endian, value 68..255).
 //
+// It also proves the multi-part path: one call that emits a head and its parts
+// is ONE package (`publishLongFixture2`/`3`, literal; `publishRaw2`/`3`, raw).
+//
 // It is also the source of the negative corpus: every field is a parameter, so
 // the probe can emit payloads a conforming consumer MUST reject (a reserved
 // val-type, a val-len beyond the package, an empty key, an unknown kind byte, a
@@ -55,6 +58,70 @@ export circuit publishFixture(): [] {
   _calls.increment(1);
   TM_emitTokenMetadata(pad(32, "umbra:probe"), TM_KIND_SHIELDED(), pad(32, "name"),
                        TM_VAL_TYPE_STRING(), 11, pad(188, "Umbra Probe"));
+}
+
+/**
+ * @description Emits a head and ONE continuation part from one call — a raw
+ * two-part package for the negative corpus (e.g. a declared length beyond the
+ * package, or non-zero bytes after the value). Everything is a parameter.
+ */
+export circuit publishRaw2(
+  domainSep: Bytes<32>,
+  kind: Uint<8>,
+  key: Bytes<32>,
+  valType: Uint<8>,
+  valLen: Uint<16>,
+  valueHead: Bytes<188>,
+  part1: Bytes<256>
+): [] {
+  _calls.increment(1);
+  TM_emitHead(disclose(domainSep), disclose(kind), disclose(key),
+              disclose(valType), disclose(valLen), disclose(valueHead));
+  TM_emitPart(disclose(part1));
+}
+
+/** @description As `publishRaw2`, with two continuation parts: a raw three-part package. */
+export circuit publishRaw3(
+  domainSep: Bytes<32>,
+  kind: Uint<8>,
+  key: Bytes<32>,
+  valType: Uint<8>,
+  valLen: Uint<16>,
+  valueHead: Bytes<188>,
+  part1: Bytes<256>,
+  part2: Bytes<256>
+): [] {
+  _calls.increment(1);
+  TM_emitHead(disclose(domainSep), disclose(kind), disclose(key),
+              disclose(valType), disclose(valLen), disclose(valueHead));
+  TM_emitPart(disclose(part1));
+  TM_emitPart(disclose(part2));
+}
+
+/**
+ * @description One literal THREE-part declaration from one call: `description`
+ * = a 700-byte UTF-8 string, which fills the package exactly (68 + 700 = 768 =
+ * 3 × 256). The module path a long value takes: `emitHead` then `emitPart`s.
+ */
+export circuit publishLongFixture3(): [] {
+  _calls.increment(1);
+  TM_emitHead(pad(32, "umbra:probe"), TM_KIND_SHIELDED(), pad(32, "description"),
+              TM_VAL_TYPE_STRING(), 700,
+              pad(188, "MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent."));
+  TM_emitPart(pad(256, " MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP"));
+  TM_emitPart(pad(256, "-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-001"));
+}
+
+/**
+ * @description One literal TWO-part declaration from one call: `description` =
+ * a 300-byte UTF-8 string (68 + 300 = 368 of 512 bytes; the last 144 are NUL).
+ */
+export circuit publishLongFixture2(): [] {
+  _calls.increment(1);
+  TM_emitHead(pad(32, "umbra:probe"), TM_KIND_SHIELDED(), pad(32, "description"),
+              TM_VAL_TYPE_STRING(), 300,
+              pad(188, "MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MI"));
+  TM_emitPart(pad(256, "P-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zer"));
 }
 
 /**

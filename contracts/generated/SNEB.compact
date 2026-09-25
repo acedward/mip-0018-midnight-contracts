@@ -72,7 +72,7 @@ export circuit publishMetadata(): [] {
   TM_emitTokenMetadata(pad(32, "umbra:sneb"), 1, pad(32, "symbol"), 1, 4, pad(188, "SNEB"));
   // decimals = "0" (val-type 2 integer, val-len 16)
   TM_emitTokenMetadata(pad(32, "umbra:sneb"), 1, pad(32, "decimals"), 2, 16, pad(188, ""));
-  // metadata = "{\"description\":\"A nebula described by one complete JSON value: MIP-0018 defines no multipart reassembly.\",\"collection\":\"Umbra reference set\"}" (val-type 3 JSON, val-len 141)
+  // metadata = "{\"description\":\"A nebula described by one complete JSON value: MIP-0018 defines no multipart reassembly.\",\"coll… (val-type 3 JSON, val-len 141)
   TM_emitTokenMetadata(pad(32, "umbra:sneb"), 1, pad(32, "metadata"), 3, 141, Bytes[
     0x7b, 0x22, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f,
     0x6e, 0x22, 0x3a, 0x22, 0x41, 0x20, 0x6e, 0x65, 0x62, 0x75, 0x6c, 0x61,
