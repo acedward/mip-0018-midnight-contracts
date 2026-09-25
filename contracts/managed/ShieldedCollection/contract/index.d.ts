@@ -26,7 +26,7 @@ export type ImpureCircuits<PS> = {
   mintedPieces(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
   mintPiece(context: __compactRuntime.CircuitContext<PS>,
             pieceDomain_0: Uint8Array,
-            recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
+            recipient_0: ZswapCoinPublicKey,
             nonce_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, ShieldedCoinInfo>>;
   setPieceTrait(context: __compactRuntime.CircuitContext<PS>,
                 pieceDomain_0: Uint8Array,
@@ -45,7 +45,7 @@ export type ProvableCircuits<PS> = {
   mintedPieces(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
   mintPiece(context: __compactRuntime.CircuitContext<PS>,
             pieceDomain_0: Uint8Array,
-            recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
+            recipient_0: ZswapCoinPublicKey,
             nonce_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, ShieldedCoinInfo>>;
   setPieceTrait(context: __compactRuntime.CircuitContext<PS>,
                 pieceDomain_0: Uint8Array,
@@ -67,7 +67,7 @@ export type Circuits<PS> = {
   mintedPieces(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
   mintPiece(context: __compactRuntime.CircuitContext<PS>,
             pieceDomain_0: Uint8Array,
-            recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
+            recipient_0: ZswapCoinPublicKey,
             nonce_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, ShieldedCoinInfo>>;
   setPieceTrait(context: __compactRuntime.CircuitContext<PS>,
                 pieceDomain_0: Uint8Array,

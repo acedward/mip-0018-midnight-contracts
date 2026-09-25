@@ -29,7 +29,7 @@ export type ImpureCircuits<PS> = {
               valLen_0: bigint,
               value_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
   mint(context: __compactRuntime.CircuitContext<PS>,
-       recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
+       recipient_0: ZswapCoinPublicKey,
        amount_0: bigint,
        nonce_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, ShieldedCoinInfo>>;
 }
@@ -46,7 +46,7 @@ export type ProvableCircuits<PS> = {
               valLen_0: bigint,
               value_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
   mint(context: __compactRuntime.CircuitContext<PS>,
-       recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
+       recipient_0: ZswapCoinPublicKey,
        amount_0: bigint,
        nonce_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, ShieldedCoinInfo>>;
 }
@@ -66,7 +66,7 @@ export type Circuits<PS> = {
               valLen_0: bigint,
               value_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
   mint(context: __compactRuntime.CircuitContext<PS>,
-       recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
+       recipient_0: ZswapCoinPublicKey,
        amount_0: bigint,
        nonce_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, ShieldedCoinInfo>>;
 }

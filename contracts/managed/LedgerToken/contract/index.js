@@ -718,7 +718,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('emitterSecret',
                                  'return value',
-                                 'TokenMetadata.compact line 132 char 3',
+                                 'TokenMetadata.compact line 137 char 3',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -793,7 +793,7 @@ export class Contract {
                                                                                                                                                                                                                                                                                                                                                        valType_0,
                                                                                                                                                                                                                                                                                                                                                        ...Array.from(__compactRuntime.convertBigintToBytes(2,
                                                                                                                                                                                                                                                                                                                                                                                                            valLen_0,
-                                                                                                                                                                                                                                                                                                                                                                                                           'TokenMetadata.compact line 201 char 63'),
+                                                                                                                                                                                                                                                                                                                                                                                                           'TokenMetadata.compact line 206 char 63'),
                                                                                                                                                                                                                                                                                                                                                                      BigInt),
                                                                                                                                                                                                                                                                                                                                                        ...Array.from(valueHead_0,
                                                                                                                                                                                                                                                                                                                                                                      BigInt)],
@@ -836,7 +836,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('wit_OwnableSK',
                                  'return value',
-                                 'Ownable.compact line 108 char 3',
+                                 'Ownable.compact line 114 char 3',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1004,7 +1004,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('wit_FungibleTokenSK',
                                  'return value',
-                                 'FungibleToken.compact line 112 char 3',
+                                 'FungibleToken.compact line 126 char 3',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1259,7 +1259,7 @@ export class Contract {
                               'FungibleToken: arithmetic overflow');
       const tmp_0 = ((t1) => {
                       if (t1 > 340282366920938463463374607431768211455n) {
-                        throw new __compactRuntime.CompactError('FungibleToken.compact line 534 char 31: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                        throw new __compactRuntime.CompactError('FungibleToken.compact line 548 char 31: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                       }
                       return t1;
                     })(_descriptor_4.fromValue(__compactRuntime.queryLedgerState(context,
@@ -1346,7 +1346,7 @@ export class Contract {
                                               canonTo_0);
       const tmp_3 = ((t1) => {
                       if (t1 > 340282366920938463463374607431768211455n) {
-                        throw new __compactRuntime.CompactError('FungibleToken.compact line 546 char 52: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                        throw new __compactRuntime.CompactError('FungibleToken.compact line 560 char 52: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                       }
                       return t1;
                     })(toBal_0 + value_0);

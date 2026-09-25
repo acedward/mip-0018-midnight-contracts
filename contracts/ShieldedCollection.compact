@@ -58,12 +58,13 @@ export circuit mintedPieces(): Uint<64> {
 }
 
 /**
- * @description Mints one unit of the piece identified by `pieceDomain`.
+ * @description Mints one unit of the piece identified by `pieceDomain` to a Zswap coin
+ * public key (OpenZeppelin 0.4.0-alpha.3 #833: `_mint` takes a `ZswapCoinPublicKey`).
  * @param {Bytes<32>} nonce - Caller-supplied, unique per (piece, mint).
  */
 export circuit mintPiece(
   pieceDomain: Bytes<32>,
-  recipient: Either<ZswapCoinPublicKey, ContractAddress>,
+  recipient: ZswapCoinPublicKey,
   nonce: Bytes<32>
 ): ShieldedCoinInfo {
   _mintedPieces.increment(1);

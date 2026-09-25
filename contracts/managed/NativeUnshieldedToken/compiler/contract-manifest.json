@@ -21,12 +21,12 @@
     "index.js": {
       "type": "file",
       "size": 72608,
-      "hash": "2ab7888235113d13c9756dda3b94ac6d73cc8e0feb55386da5e3000ddabb7b41"
+      "hash": "c6564c4b3fd37dbb331d8fff382c3ff2b94328d08bc1f4aa7559317973ebe2c6"
     },
     "index.js.map": {
       "type": "file",
-      "size": 3139,
-      "hash": "5d21f1611eb1e42d0a0a5b3b860a2504c4d550e71e8e86ba9d10260ed7d1b044"
+      "size": 3140,
+      "hash": "bbacd84ef51062b016f44759961d13cd4c0dfe13a7228b4637988b534fd8aa7c"
     }
   },
   "zkir": {

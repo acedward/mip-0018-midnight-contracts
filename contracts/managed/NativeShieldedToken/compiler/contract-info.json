@@ -107,44 +107,13 @@
           "name": "recipient",
           "type": {
             "type-name": "Struct",
-            "name": "Either",
+            "name": "ZswapCoinPublicKey",
             "elements": [
               {
-                "name": "is_left",
+                "name": "bytes",
                 "type": {
-                  "type-name": "Boolean"
-                }
-              },
-              {
-                "name": "left",
-                "type": {
-                  "type-name": "Struct",
-                  "name": "ZswapCoinPublicKey",
-                  "elements": [
-                    {
-                      "name": "bytes",
-                      "type": {
-                        "type-name": "Bytes",
-                        "length": 32
-                      }
-                    }
-                  ]
-                }
-              },
-              {
-                "name": "right",
-                "type": {
-                  "type-name": "Struct",
-                  "name": "ContractAddress",
-                  "elements": [
-                    {
-                      "name": "bytes",
-                      "type": {
-                        "type-name": "Bytes",
-                        "length": 32
-                      }
-                    }
-                  ]
+                  "type-name": "Bytes",
+                  "length": 32
                 }
               }
             ]

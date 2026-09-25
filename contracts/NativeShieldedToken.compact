@@ -78,11 +78,14 @@ export circuit setMetadata(key: Bytes<32>, valType: Uint<8>, valLen: Uint<16>, v
 }
 
 /**
- * @description Mints `amount` of this token to `recipient`.
+ * @description Mints `amount` of this token to `recipient`, a Zswap coin public key.
+ * OpenZeppelin 0.4.0-alpha.3 (#833) mints only to a `ZswapCoinPublicKey` (a contract
+ * recipient is limited to the contract itself, `_mintToSelf`), so this takes the key
+ * directly rather than an `Either`.
  * @param {Bytes<32>} nonce - Caller-supplied and unique per mint.
  */
 export circuit mint(
-  recipient: Either<ZswapCoinPublicKey, ContractAddress>,
+  recipient: ZswapCoinPublicKey,
   amount: Uint<64>,
   nonce: Bytes<32>
 ): ShieldedCoinInfo {

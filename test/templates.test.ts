@@ -125,6 +125,9 @@ const zswapRecipient = (label: string) => ({
   right: { bytes: new Uint8Array(32) },
 });
 
+/** OpenZeppelin 0.4.0-alpha.3 (#833): the shielded modules mint to a `ZswapCoinPublicKey` only. */
+const zswapKey = (label: string) => ({ bytes: pad(32, label) });
+
 const userRecipient = (label: string) => ({
   is_left: false,
   left: { bytes: new Uint8Array(32) },
@@ -205,7 +208,7 @@ describe('NativeShieldedToken', () => {
     expect(hex(circuitColor as Uint8Array)).toBe(hex(derived));
 
     const nonce = pad(32, 'sstar-mint-1');
-    const { result, effects } = await c.call('mint', zswapRecipient('holder-1'), 5_000_000n, nonce);
+    const { result, effects } = await c.call('mint', zswapKey('holder-1'), 5_000_000n, nonce);
     const coin = result as { nonce: Uint8Array; color: Uint8Array; value: bigint };
     expect(hex(coin.color)).toBe(hex(derived));
     expect(coin.value).toBe(5_000_000n);
@@ -394,7 +397,7 @@ describe('ShieldedCollection', () => {
       const { result, effects } = await c.call(
         'mintPiece',
         domain,
-        zswapRecipient(`collector-${piece}`),
+        zswapKey(`collector-${piece}`),
         pad(32, `cnst:${piece}:1`),
       );
       const coin = result as { color: Uint8Array; value: bigint };

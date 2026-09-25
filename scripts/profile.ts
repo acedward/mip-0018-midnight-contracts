@@ -2,9 +2,9 @@
  * Network profile and shared helpers for the on-chain scripts.
  *
  * Modelled on shielded-night v2's `contracts/v2/scripts/profile.ts`, which is the tooling
- * that already deploys to Stagenet with this exact pin set (compact-js 2.5.5-rc.8,
- * compact-runtime 0.19.0, midnight-js 5.0.0-beta.7, ledger-v9 1.0.0-rc.3, wallet-sdk
- * 2.0.0-beta.2). Only the Stagenet profile is supported: the reference set is deployed to
+ * that already deploys to Stagenet with this pin set (compact-js 2.5.5-rc.8,
+ * compact-runtime 0.19.0, midnight-js 5.0.0-beta.7, wallet-sdk 2.0.0-beta.2); ledger-v9 is
+ * 1.0.0-rc.5 since spec 00024 (one copy, pinned in `dependencies` and `overrides`). Only the Stagenet profile is supported: the reference set is deployed to
  * a public test network on purpose, so an indexer that anyone can query serves the events.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -17,7 +17,7 @@ export const COMPATIBILITY = {
   compactJs: '2.5.5-rc.8',
   compactRuntime: '0.19.0',
   midnightJs: '5.0.0-beta.7',
-  ledger: '1.0.0-rc.3',
+  ledger: '1.0.0-rc.5',
   onchainRuntime: '4.0.0-rc.3',
   walletSdk: '2.0.0-beta.2',
 } as const;
