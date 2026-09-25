@@ -327,7 +327,10 @@ describe('the reference set fixtures', () => {
     );
 
     for (const payload of payloads) {
-      expect(payload.payloadHex).toHaveLength(PAYLOAD_SIZE * 2);
+      // One package per case: 256·k bytes, the concatenation of its parts.
+      expect(payload.payloadHex).toHaveLength(PAYLOAD_SIZE * 2 * payload.parts);
+      expect(payload.partPayloadsHex).toHaveLength(payload.parts);
+      expect(payload.partPayloadsHex.join('')).toBe(payload.payloadHex);
       expect(payload.why).toBeTruthy();
       expect(['rejected', 'applied', 'ignored']).toContain(payload.expect);
       if (payload.expect === 'ignored') {
@@ -374,6 +377,39 @@ describe('the reference set fixtures', () => {
       find((p) => String(p.keyText).startsWith('/metadata/') && p.expect === 'applied').length,
     ).toBeGreaterThanOrEqual(2);
     expect(find((p) => p.reason === 'key_pointer_invalid').length).toBe(1);
+  });
+
+  it('keeps every UC-1 package rule on both sides (spec 00024 FR-007, Q11)', () => {
+    type P = { mipSection: string; expect: string; reason?: string; parts: number; len: number; keyText: string; valType: number; why: string };
+    const uc1 = (payloads as P[]).filter((p) => p.mipSection === 'UC-1');
+    const beyond = uc1.filter((p) => p.reason === 'val_len_beyond_package');
+    // A declared length beyond the package: rejected in one, two and three parts…
+    expect(new Set(beyond.map((p) => p.parts))).toEqual(new Set([1, 2, 3]));
+    for (const p of beyond) expect(HEADER_SIZE + p.len).toBeGreaterThan(PAYLOAD_SIZE * p.parts);
+    // …and a value that fills its package exactly is applied.
+    expect(uc1.some((p) => p.expect === 'applied' && HEADER_SIZE + p.len === PAYLOAD_SIZE * p.parts && p.parts === 2)).toBe(true);
+    // Non-zero bytes after the value are ignored (Q11), in one part and in two.
+    const trailing = uc1.filter((p) => p.expect === 'applied' && /NON-ZERO/.test(p.why));
+    expect(new Set(trailing.map((p) => p.parts))).toEqual(new Set([1, 2]));
+    // Q11's use case: two declarations merged by one intent — only the first is applied.
+    const merged = uc1.find((p) => /TWO declarations/.test(p.why))!;
+    expect(merged).toMatchObject({ expect: 'applied', keyText: 'name', parts: 2, len: 10 });
+    // No hidden framing: a UTF-8 character across the part boundary is valid once merged.
+    expect(uc1.some((p) => p.expect === 'applied' && /spans the boundary/.test(p.why))).toBe(true);
+    // A JSON document cut by val-len is a fragment.
+    expect(uc1.some((p) => p.valType === 3 && p.parts === 2 && p.reason === 'val_type_rule')).toBe(true);
+  });
+
+  it('pins SOURCE.md to the committed outputs (regenerate with npm run export:fixtures:simulator)', () => {
+    const source = readFileSync(join(ROOT, 'fixtures/simulator/SOURCE.md'), 'utf8');
+    for (const file of ['events.json', 'mints.json', 'color-vectors.json', 'expected-tokens.json', 'negative-payloads.json']) {
+      const digest = createHash('sha256').update(readFileSync(join(ROOT, 'fixtures/simulator', file))).digest('hex');
+      expect(source, file).toContain(`| \`${file}\` | \`${digest}\` |`);
+    }
+    for (const file of ['deployments/reference-set.json', 'deployments/generated-matrix.json']) {
+      const digest = createHash('sha256').update(readFileSync(join(ROOT, file))).digest('hex');
+      expect(source, file).toContain(`| \`${file}\` | \`${digest}\` |`);
+    }
   });
 
   it('carries the events a consumer must IGNORE rather than reject', () => {

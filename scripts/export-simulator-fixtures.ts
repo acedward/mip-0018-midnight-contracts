@@ -23,7 +23,7 @@
  * colour — is reproducible.
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CompactTypeBytes, CompactTypeVector, persistentCommit } from '@midnight-ntwrk/compact-runtime';
@@ -562,8 +562,42 @@ async function runNegatives() {
     keyLabel: string;
     valType: number;
     len: number;
+    /** The one-part value field, or the HEAD (first 188 value bytes) of a multi-part package. */
     value: Uint8Array;
+    /** UC-1: continuation parts (256 bytes each) emitted after the head in the SAME call. */
+    parts?: Uint8Array[];
   }
+
+  /** 256 bytes: `text` (UTF-8) then `fillByte` to the end. */
+  const part256 = (text: string, fillByte = 0): Uint8Array => {
+    const bytes = new TextEncoder().encode(text);
+    if (bytes.length > PAYLOAD_SIZE) throw new Error('part text longer than 256 bytes');
+    const out = new Uint8Array(PAYLOAD_SIZE).fill(fillByte);
+    out.set(bytes);
+    return out;
+  };
+  /** A one-part head: `text` then `fillByte` to 188 bytes. */
+  const head188 = (text: string, fillByte = 0): Uint8Array => {
+    const bytes = new TextEncoder().encode(text);
+    const out = new Uint8Array(ONE_PART_VALUE_SIZE).fill(fillByte);
+    out.set(bytes);
+    return out;
+  };
+  /** A whole second one-part declaration's payload, as a publisher that broke [Y] §5 would emit it. */
+  const declarationPayload = (key: string, valType: number, text: string): Uint8Array => {
+    const out = new Uint8Array(PAYLOAD_SIZE);
+    out.set(pad(32, 'umbra:probe'), 0);
+    out[32] = 1;
+    out.set(pad(32, key), 33);
+    out[65] = valType;
+    const bytes = new TextEncoder().encode(text);
+    out[66] = bytes.length & 0xff;
+    out[67] = bytes.length >> 8;
+    out.set(bytes, 68);
+    return out;
+  };
+  const straddle = 'x'.repeat(187) + '·' + 'y'.repeat(40); // the 2-byte '·' spans bytes 187..188 of the value
+  const longJson = JSON.stringify({ description: 'A JSON document in two parts. '.repeat(9) });
 
   const key = (text: string) => ({ key: pad(32, text), keyLabel: text });
 
@@ -625,6 +659,106 @@ async function runNegatives() {
       valType: VAL_TYPE_STRING,
       len: 3,
       value: value188('bad').bytes,
+    },
+    // ---- UC-1: the package (Multi-Part Event rule), spec 00024 ------------
+    {
+      why: 'UC-1: a TWO-part package whose val-len (445) is one byte more than the package holds (68 + 445 > 512): rejected, the declared length is beyond the package',
+      mip: 'UC-1',
+      expect: 'rejected',
+      reason: 'val_len_beyond_package',
+      kind: 1,
+      ...key('description'),
+      valType: VAL_TYPE_STRING,
+      len: 445,
+      value: head188('', 0x61),
+      parts: [part256('', 0x62)],
+    },
+    {
+      why: 'UC-1: a THREE-part package declaring val-len 65535 (the Uint<16> maximum): rejected, 68 + 65535 bytes are not in 768',
+      mip: 'UC-1',
+      expect: 'rejected',
+      reason: 'val_len_beyond_package',
+      kind: 1,
+      ...key('description'),
+      valType: VAL_TYPE_STRING,
+      len: 0xffff,
+      value: head188('', 0x61),
+      parts: [part256('', 0x62), part256('', 0x63)],
+    },
+    {
+      why: 'UC-1: a TWO-part package whose value (444 bytes) fills it exactly (68 + 444 = 512): applied',
+      mip: 'UC-1',
+      expect: 'applied',
+      kind: 1,
+      ...key('description'),
+      valType: VAL_TYPE_STRING,
+      len: 444,
+      value: head188('', 0x61),
+      parts: [part256('', 0x62)],
+    },
+    {
+      why: 'UC-1: a value whose 2-byte UTF-8 character "·" spans the boundary between part 1 and part 2 (value bytes 187 and 188): applied — the reader decodes the MERGED package, parts carry no framing ([Y] §4)',
+      mip: 'UC-1',
+      expect: 'applied',
+      kind: 1,
+      ...key('description'),
+      valType: VAL_TYPE_STRING,
+      len: new TextEncoder().encode(straddle).length,
+      value: new TextEncoder().encode(straddle).subarray(0, ONE_PART_VALUE_SIZE),
+      parts: [(() => {
+        const rest = new TextEncoder().encode(straddle).subarray(ONE_PART_VALUE_SIZE);
+        const out = new Uint8Array(PAYLOAD_SIZE);
+        out.set(rest);
+        return out;
+      })()],
+    },
+    {
+      why: 'UC-1: a JSON document published in two parts whose val-len stops in the middle of it (250 of its bytes): rejected — the declared value is a fragment, not ONE complete JSON value (MIP section 2.1)',
+      mip: 'UC-1',
+      expect: 'rejected',
+      reason: 'val_type_rule',
+      kind: 1,
+      ...key('metadata'),
+      valType: VAL_TYPE_JSON,
+      len: 250,
+      value: new TextEncoder().encode(longJson).subarray(0, ONE_PART_VALUE_SIZE),
+      parts: [(() => {
+        const out = new Uint8Array(PAYLOAD_SIZE);
+        out.set(new TextEncoder().encode(longJson).subarray(ONE_PART_VALUE_SIZE, ONE_PART_VALUE_SIZE + PAYLOAD_SIZE));
+        return out;
+      })()],
+    },
+    {
+      why: 'UC-1 and spec 00024 Q11: a one-part declaration ("ok", val-len 2) followed by NON-ZERO bytes: applied — the bytes after the value are ignored, as MIP-0018 says',
+      mip: 'UC-1',
+      expect: 'applied',
+      kind: 1,
+      ...key('description'),
+      valType: VAL_TYPE_STRING,
+      len: 2,
+      value: head188('ok', 0x5a),
+    },
+    {
+      why: 'UC-1 and spec 00024 Q11: a TWO-part declaration of 200 bytes whose last part continues with NON-ZERO bytes after the value: applied, the trailing bytes ignored',
+      mip: 'UC-1',
+      expect: 'applied',
+      kind: 1,
+      ...key('description'),
+      valType: VAL_TYPE_STRING,
+      len: 200,
+      value: head188('', 0x61),
+      parts: [part256('bbbbbbbbbbbb', 0x5a)],
+    },
+    {
+      why: 'spec 00024 Q11 use case: a publisher that broke [Y] §5 by emitting TWO declarations (name, then symbol) from one contract in one intent — a reader merges them into ONE package, which reads as the name followed by the symbol declaration\'s bytes: applied as `name` only; those bytes are ignored and the symbol is NOT applied',
+      mip: 'UC-1',
+      expect: 'applied',
+      kind: 1,
+      ...key('name'),
+      valType: VAL_TYPE_STRING,
+      len: 10,
+      value: head188('Ledger Sun'),
+      parts: [declarationPayload('symbol', VAL_TYPE_STRING, 'LSUN')],
     },
     // ---- MIP section 2.1: the val-type byte ------------------------------
     {
@@ -925,16 +1059,28 @@ async function runNegatives() {
     // The two ignored names keep their emitters' one-byte val-len, 189-byte value layout.
     const legacyLayout = c.legacyName || c.preMipName;
     const value = legacyLayout ? Uint8Array.from([...c.value, 0]) : c.value;
-    const { events: emitted } = await probe.call(
-      c.legacyName ? 'publishLegacyName' : c.preMipName ? 'publishPreMipName' : 'publishRaw',
+    const continuation = c.parts ?? [];
+    if (continuation.length > 2) throw new Error(`negative "${c.why}": the probe emits at most 3 parts`);
+    const circuit = c.legacyName
+      ? 'publishLegacyName'
+      : c.preMipName
+        ? 'publishPreMipName'
+        : continuation.length === 0
+          ? 'publishRaw'
+          : `publishRaw${continuation.length + 1}`;
+    const { packages: emitted, rawEvents } = await probe.call(
+      circuit,
       pad(32, 'umbra:probe'),
       BigInt(c.kind),
       c.key,
       BigInt(c.valType),
       BigInt(c.len),
       value,
+      ...continuation,
     );
-    const event = emitted[0];
+    // One call = one intent: the parts form ONE package ([Y] §4), which is what a consumer validates.
+    if (emitted.length !== 1) throw new Error(`negative "${c.why}": ${emitted.length} packages, not 1`);
+    const event = emitted[0]!;
     const verdict = validateTokenMetadataEvent(event);
 
     // The corpus states what a consumer must do; the reference decoder has to
@@ -955,7 +1101,10 @@ async function runNegatives() {
       ...(c.projectionFails ? { projectionFails: true } : {}),
       contractAddress: address,
       eventName: event.eventName,
+      /** k: the package's parts; `partPayloadsHex` are its events, in emission order. */
+      parts: event.parts,
       payloadHex: hex(event.payload),
+      partPayloadsHex: (rawEvents as never[]).map((raw) => hex(miscParts(raw).payload)),
       kind: event.kind,
       keyHex: hex(event.key),
       keyText: c.keyLabel,
@@ -1034,6 +1183,122 @@ write('negative-payloads.json', {
   }, {}),
   payloads: negatives,
 });
+
+// ---- SOURCE.md: what produced this corpus, pinned by content hash ---------------------
+//
+// A file cannot name the commit that contains it, so the inputs are pinned by SHA-256
+// instead: anyone can check a checkout against this table, and a regeneration from the
+// same inputs reproduces every output byte (the run is deterministic).
+const sha256File = (file: string): string => createHash('sha256').update(readFileSync(join(ROOT, file))).digest('hex');
+const filesBelow = (directory: string): string[] =>
+  readdirSync(join(ROOT, directory)).flatMap((name) => {
+    const rel = `${directory}/${name}`;
+    return statSync(join(ROOT, rel)).isDirectory() ? filesBelow(rel) : [rel];
+  });
+/** One digest per compiled contract: every committed artefact file (keys/ and *.bzkir are not committed). */
+const managedDigest = (contract: string): string => {
+  const hash = createHash('sha256');
+  const prefix = `contracts/managed/${contract}/`;
+  for (const file of filesBelow(`contracts/managed/${contract}`).sort()) {
+    if (file.includes('/keys/') || file.endsWith('.bzkir')) continue;
+    hash.update(file.slice(prefix.length));
+    hash.update('\0');
+    hash.update(readFileSync(join(ROOT, file)));
+    hash.update('\0');
+  }
+  return hash.digest('hex');
+};
+const compilerInfo = JSON.parse(
+  readFileSync(join(ROOT, 'contracts/managed/MetadataProbe/compiler/contract-info.json'), 'utf8'),
+) as Record<string, string>;
+const runtimeVersion = (
+  JSON.parse(readFileSync(join(ROOT, 'node_modules/@midnight-ntwrk/compact-runtime/package.json'), 'utf8')) as {
+    version: string;
+  }
+).version;
+const outputs = ['events.json', 'mints.json', 'color-vectors.json', 'expected-tokens.json', 'negative-payloads.json'];
+const inputs = [
+  'deployments/reference-set.json',
+  'deployments/generated-matrix.json',
+  'scripts/generate-literal-contracts.ts',
+  'scripts/export-simulator-fixtures.ts',
+  'test/token-metadata.ts',
+  'contracts/TokenMetadata.compact',
+  'contracts/probe/MetadataProbe.compact',
+  ...matrix.rows.map((row) => `contracts/generated/${row.contract}.compact`),
+];
+const BT = String.fromCharCode(96);
+const code = (text: string): string => `${BT}${text}${BT}`;
+const table = (rows: string[][]): string =>
+  [rows[0]!, rows[0]!.map(() => '---'), ...rows.slice(1)].map((r) => `| ${r.join(' | ')} |`).join('\n');
+const counted = (counts: Record<string, number>, unit = ''): string =>
+  Object.entries(counts)
+    .map(([k, n]) => `${n} ${unit ? `× ${k} ${unit}${k === '1' ? '' : 's'}` : k}`)
+    .join(', ');
+const negativeOutcomes = negatives.reduce<Record<string, number>>((acc, p) => {
+  acc[String(p.expect)] = (acc[String(p.expect)] ?? 0) + 1;
+  return acc;
+}, {});
+
+const sourceMd = [
+  '# fixtures/simulator — provenance (GENERATED by scripts/export-simulator-fixtures.ts; do not edit)',
+  '',
+  `The offline MIP-0018 corpus of ${code('acedward/mip-0018-midnight-contracts')} on the **UC-1 layout** (spec 00024; an amendment in development of ${code('mip-0018:token-metadata[v1]')}: 2-byte little-endian ${code('val-len')} at offset 66, value from offset 68, one declaration per package, packages of 256·k bytes under the Multi-Part Event rule). Produced by running the **generated MIP-18 contracts** (${code('LSUN18')} … ${code('LLIAR18')}, the ones ${code('scripts/deploy-and-publish.ts')} deploys) in the Compact simulator, one ${code('deployments/generated-matrix.json')} step per circuit call, and the negative corpus from ${code('contracts/probe/MetadataProbe.compact')}.`,
+  '',
+  `Regenerate: ${code('npm run export:fixtures:simulator')} — deterministic: two runs from the same inputs give identical bytes (compare with the output hashes below).`,
+  '',
+  '## Toolchain',
+  '',
+  table([
+    ['Piece', 'Version'],
+    [
+      `Compact compiler (${code('compact compile +0.34.0')})`,
+      `${code(compilerInfo['compiler-version']!)} (language ${code(compilerInfo['language-version']!)}, runtime ${code(compilerInfo['runtime-version']!)})`,
+    ],
+    [`${code('@midnight-ntwrk/compact-runtime')} (the simulator)`, code(runtimeVersion)],
+    ['Emitter secret of the corpus (a public TEST value, never a real secret)', `32 × 0x42; constructor argument ${code(hex(EMITTER_HASH))}`],
+  ]),
+  '',
+  '## Contents',
+  '',
+  table([
+    ['File', 'What'],
+    [
+      code('events.json'),
+      `${code('events')}: all ${events.length} ${code(EVENT_NAME)} Misc events as a chain delivers them (256 bytes each; ${code('eventId')} = emission order, ${code('packageId')}, ${code('part')} 1..k, ${code('txStandIn')}, ${code('segmentStandIn')}). ${code('packages')}: the ${packages.length} packages they form — ${counted(partCounts, 'part')} — each ONE declaration: ${code('eventIds')} in order, the merged ${code('payloadHex')} (256·k bytes, every byte kept), ${code('payloadSha256')} and the decoded fields`,
+    ],
+    [
+      code('expected-tokens.json'),
+      `the ${expectedTokens.length} token rows over ${identities.size} identities ${code('(contractAddress, domainSep, kind)')} a consumer folds out of the packages (last write wins in emission order, a package positioned by its first part — derivation P1): ${counted(statusCounts)}; traits carry ${code('parts')}, and a JSON-object ${code('metadata')} is also projected`,
+    ],
+    [code('mints.json'), `${mints.length} mint effects a scanner reads out of the transcripts`],
+    [code('color-vectors.json'), `${colorVectors.length} ${code('(domainSep, address) → colour')} vectors, each checked against the contract's own ${code('tokenColor()')}`],
+    [
+      code('negative-payloads.json'),
+      `${negatives.length} packages that are not simply applied (${counted(negativeOutcomes)}), one per rule and on both sides where a rule has two — including the UC-1 cases: a declared length beyond the package (1, 2 and 3 parts), a package filled exactly, a UTF-8 character across a part boundary, a JSON value cut by ${code('val-len')}, non-zero bytes after the value (1 and 2 parts) and two declarations merged by one intent (spec 00024 Q11). Every entry has ${code('parts')} and its ${code('partPayloadsHex')}`,
+    ],
+  ]),
+  '',
+  `Stand-ins (the simulator has no chain): contract addresses are ${code('sha256("umbra:00024:<row id>")')}; ${code('txStandIn')} is ${code('sha256("umbra:00024:sim:<row>:<step>")')} — one transaction per circuit call; ${code('segmentStandIn')} is ${code('1')} (one call = one intent; a real chain assigns a random 16-bit segment id). No block heights and no indexer event ids.`,
+  '',
+  '## Inputs (SHA-256 of the files that produced this corpus)',
+  '',
+  table([['File', 'SHA-256'], ...inputs.map((file) => [code(file), code(sha256File(file))])]),
+  '',
+  `Compiled artefacts (${code('contracts/managed/<name>/')}, every committed file; keys are not committed):`,
+  '',
+  table([
+    ['Contract', 'Digest'],
+    ...['MetadataProbe', ...matrix.rows.map((row) => row.contract)].map((c) => [code(c), code(managedDigest(c))]),
+  ]),
+  '',
+  '## Outputs (SHA-256)',
+  '',
+  table([['File', 'SHA-256'], ...outputs.map((file) => [code(file), code(sha256File(`fixtures/simulator/${file}`))])]),
+  '',
+].join('\n');
+writeFileSync(join(OUT, 'SOURCE.md'), sourceMd);
+
 
 process.stdout.write(
   `\nwrote ${packages.length} packages in ${events.length} events (${Object.entries(partCounts)
