@@ -224,13 +224,32 @@
     }
   ],
   "witnesses": [
+    {
+      "name": "emitterSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    }
   ],
   "contracts": [
   ],
   "ledger": [
     {
-      "name": "_mintedPieces",
+      "name": "emitterSecretHash",
       "index": 0,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "_mintedPieces",
+      "index": 1,
       "exported": true,
       "storage": "Counter"
     }

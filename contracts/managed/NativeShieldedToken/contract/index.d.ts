@@ -14,7 +14,7 @@ export type ShieldedCoinInfo = { nonce: Uint8Array;
 export type ZswapCoinPublicKey = { bytes: Uint8Array };
 
 export type Witnesses<PS> = {
-  wit_OwnableSK(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
+  emitterSecret(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
 }
 
 export type ImpureCircuits<PS> = {
@@ -23,7 +23,6 @@ export type ImpureCircuits<PS> = {
   name(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, string>>;
   symbol(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, string>>;
   decimals(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
-  publishMetadata(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, []>>;
   setMetadata(context: __compactRuntime.CircuitContext<PS>,
               key_0: Uint8Array,
               valType_0: bigint,
@@ -33,8 +32,6 @@ export type ImpureCircuits<PS> = {
        recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
        amount_0: bigint,
        nonce_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, ShieldedCoinInfo>>;
-  owner(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, Either<Uint8Array,
-                                                                                                          ContractAddress>>>;
 }
 
 export type ProvableCircuits<PS> = {
@@ -43,7 +40,6 @@ export type ProvableCircuits<PS> = {
   name(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, string>>;
   symbol(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, string>>;
   decimals(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
-  publishMetadata(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, []>>;
   setMetadata(context: __compactRuntime.CircuitContext<PS>,
               key_0: Uint8Array,
               valType_0: bigint,
@@ -53,8 +49,6 @@ export type ProvableCircuits<PS> = {
        recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
        amount_0: bigint,
        nonce_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, ShieldedCoinInfo>>;
-  owner(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, Either<Uint8Array,
-                                                                                                          ContractAddress>>>;
 }
 
 export type PureCircuits = {
@@ -66,7 +60,6 @@ export type Circuits<PS> = {
   name(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, string>>;
   symbol(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, string>>;
   decimals(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
-  publishMetadata(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, []>>;
   setMetadata(context: __compactRuntime.CircuitContext<PS>,
               key_0: Uint8Array,
               valType_0: bigint,
@@ -76,16 +69,10 @@ export type Circuits<PS> = {
        recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
        amount_0: bigint,
        nonce_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, ShieldedCoinInfo>>;
-  owner(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, Either<Uint8Array,
-                                                                                                          ContractAddress>>>;
 }
 
 export type Ledger = {
-  readonly _nameBytes: Uint8Array;
-  readonly _nameLen: bigint;
-  readonly _symbolBytes: Uint8Array;
-  readonly _symbolLen: bigint;
-  readonly _published: boolean;
+  readonly TM_emitterSecretHash: Uint8Array;
 }
 
 export type ContractReferenceLocations = any;
@@ -99,14 +86,10 @@ export declare class Contract<PS = any, W extends Witnesses<PS> = Witnesses<PS>>
   provableCircuits: ProvableCircuits<PS>;
   constructor(witnesses: W);
   initialState(context: __compactRuntime.ConstructorContext<PS>,
-               owner_0: Either<Uint8Array, ContractAddress>,
+               emitterSecretHash_0: Uint8Array,
                domain__0: Uint8Array,
                name__0: string,
-               nameBytes__0: Uint8Array,
-               nameLen__0: bigint,
                symbol__0: string,
-               symbolBytes__0: Uint8Array,
-               symbolLen__0: bigint,
                decimals__0: bigint): Promise<__compactRuntime.ConstructorResult<PS>>;
 }
 

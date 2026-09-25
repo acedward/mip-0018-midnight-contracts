@@ -11,14 +11,6 @@ export type ImpureCircuits<PS> = {
              valType_0: bigint,
              valLen_0: bigint,
              value_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
-  publishStandard(context: __compactRuntime.CircuitContext<PS>,
-                  domainSep_0: Uint8Array,
-                  kind_0: bigint,
-                  name__0: Uint8Array,
-                  nameLen_0: bigint,
-                  symbol__0: Uint8Array,
-                  symbolLen_0: bigint,
-                  decimals__0: bigint): Promise<__compactRuntime.CircuitResults<PS, []>>;
   publishFixture(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, []>>;
   publishLegacyName(context: __compactRuntime.CircuitContext<PS>,
                     domainSep_0: Uint8Array,
@@ -45,14 +37,6 @@ export type ProvableCircuits<PS> = {
              valType_0: bigint,
              valLen_0: bigint,
              value_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
-  publishStandard(context: __compactRuntime.CircuitContext<PS>,
-                  domainSep_0: Uint8Array,
-                  kind_0: bigint,
-                  name__0: Uint8Array,
-                  nameLen_0: bigint,
-                  symbol__0: Uint8Array,
-                  symbolLen_0: bigint,
-                  decimals__0: bigint): Promise<__compactRuntime.CircuitResults<PS, []>>;
   publishFixture(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, []>>;
   publishLegacyName(context: __compactRuntime.CircuitContext<PS>,
                     domainSep_0: Uint8Array,
@@ -82,14 +66,6 @@ export type Circuits<PS> = {
              valType_0: bigint,
              valLen_0: bigint,
              value_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
-  publishStandard(context: __compactRuntime.CircuitContext<PS>,
-                  domainSep_0: Uint8Array,
-                  kind_0: bigint,
-                  name__0: Uint8Array,
-                  nameLen_0: bigint,
-                  symbol__0: Uint8Array,
-                  symbolLen_0: bigint,
-                  decimals__0: bigint): Promise<__compactRuntime.CircuitResults<PS, []>>;
   publishFixture(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, []>>;
   publishLegacyName(context: __compactRuntime.CircuitContext<PS>,
                     domainSep_0: Uint8Array,

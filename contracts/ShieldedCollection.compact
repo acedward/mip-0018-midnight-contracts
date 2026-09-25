@@ -8,40 +8,32 @@
 //
 // Composition:
 //   OpenZeppelin `NativeShieldedTokenFamily`  colour and mint, per domain
-//   OpenZeppelin `Ownable`                    who may publish and update
-//   `TokenMetadata`                           the events
+//   `TokenMetadata`                           the events, and who may emit them
+//                                             (the emitter secret, spec 00024 Q12)
 //
-// Unlike the single-token templates there is no publish-once guard: for a
-// family, re-publishing a piece IS the update path the standard describes
-// (last write wins). `publishPiece` is owner-gated instead.
+// ONE DECLARATION PER CALL (UC-1): `setPieceTrait` is the only emitting circuit.
+// A piece's name, the family symbol and decimals, its `tokenUri` and every trait
+// are separate calls; re-declaring a key IS the update path (last write wins).
 
 pragma language_version >= 0.26.0;
 
 import CompactStandardLibrary;
 import "./TokenMetadata" prefix TM_;
-import "../node_modules/@openzeppelin/compact-contracts/access/Ownable" prefix Ownable_;
 import "../node_modules/@openzeppelin/compact-contracts/token/NativeShieldedTokenFamily" prefix Family_;
 
-export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey };
+export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey, TM_emitterSecretHash };
 
-/** The family symbol, in the byte form the metadata events carry. */
-export sealed ledger _symbolBytes: Bytes<32>;
-export sealed ledger _symbolLen: Uint<8>;
 /** How many pieces have been minted, for a cheap read-back after deployment. */
 export ledger _mintedPieces: Counter;
 
 constructor(
-  owner: Either<Bytes<32>, ContractAddress>,
+  emitterSecretHash: Bytes<32>,
   name_: Opaque<"string">,
   symbol_: Opaque<"string">,
-  symbolBytes_: Bytes<32>,
-  symbolLen_: Uint<8>,
   decimals_: Uint<8>
 ) {
-  Ownable_initialize(owner);
+  TM_initializeEmitter(emitterSecretHash);
   Family_initialize(name_, symbol_, decimals_);
-  _symbolBytes = disclose(symbolBytes_);
-  _symbolLen = disclose(symbolLen_);
 }
 
 /** The colour of one piece: `tokenType(pieceDomain, this contract)`. */
@@ -78,40 +70,15 @@ export circuit mintPiece(
   return Family__mint(disclose(pieceDomain), disclose(recipient), 1, disclose(nonce));
 }
 
-/**
- * @description Describes one piece: three TokenMetadata events carrying this
- * piece's `name` and the family's `symbol` and `decimals`. Owner only; may be
- * repeated to update (last write wins).
- *
- * @dev Three events is the ceiling: each event whose payload contains runtime
- * bytes costs ~120 000 rows, so four would push the circuit past k=19 and its
- * proving key past 200 MB. This piece's `tokenUri` and its traits therefore go
- * through `setPieceTrait` — see the cost table in the README and question Q20.
- */
-export circuit publishPiece(
-  pieceDomain: Bytes<32>,
-  nameBytes: Bytes<32>,
-  nameLen: Uint<8>
-): [] {
-  Ownable_assertOnlyOwner();
-  TM_emitStandardFields(disclose(pieceDomain), TM_KIND_SHIELDED(),
-                        disclose(nameBytes), disclose(nameLen),
-                        _symbolBytes, _symbolLen, Family__decimals);
-}
-
-/** Sets or replaces one trait of one piece (EIP-7496 dynamic trait). Owner only. */
+/** Declares one key of one piece (EIP-7496 dynamic trait) as a one-part package. Emitter only. */
 export circuit setPieceTrait(
   pieceDomain: Bytes<32>,
   key: Bytes<32>,
   valType: Uint<8>,
-  valLen: Uint<8>,
-  value: Bytes<189>
+  valLen: Uint<16>,
+  value: Bytes<188>
 ): [] {
-  Ownable_assertOnlyOwner();
+  TM_assertEmitter();
   TM_emitTokenMetadata(disclose(pieceDomain), TM_KIND_SHIELDED(), disclose(key),
                        disclose(valType), disclose(valLen), disclose(value));
-}
-
-export circuit owner(): Either<Bytes<32>, ContractAddress> {
-  return Ownable_owner();
 }

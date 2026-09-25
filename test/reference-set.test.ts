@@ -18,9 +18,10 @@ import {
   DEFAULT_INTEGER_LEN,
   EVENT_NAME,
   LEGACY_EVENT_NAME,
+  HEADER_SIZE,
   MAX_INTEGER_LEN,
-  MAX_VALUE_LEN,
   MISC_EVENT_SIZE,
+  ONE_PART_VALUE_SIZE,
   PAYLOAD_SIZE,
   PRE_MIP_EVENT_NAME,
   VAL_TYPE_NULL,
@@ -61,7 +62,7 @@ describe('the reference set fixtures', () => {
     for (const event of events) {
       expect(event.eventName).toBe(EVENT_NAME);
       expect(event.payloadHex).toHaveLength(PAYLOAD_SIZE * 2);
-      expect(event.len).toBeLessThanOrEqual(MAX_VALUE_LEN);
+      expect(event.len).toBeLessThanOrEqual(ONE_PART_VALUE_SIZE);
       expect(event.kind).toBeLessThanOrEqual(3);
       // MIP section 2.1: 0..5 defined, 6..255 reserved.
       expect(event.valType).toBeGreaterThanOrEqual(0);
@@ -241,7 +242,7 @@ describe('the reference set fixtures', () => {
     );
     expect(reasons).toEqual(
       new Set([
-        'val_len_too_long',
+        'val_len_beyond_package',
         'val_type_reserved',
         'val_type_rule',
         'key_empty',
@@ -261,7 +262,8 @@ describe('the reference set fixtures', () => {
       }
     }
 
-    expect(payloads.some((p: { len: number }) => p.len > MAX_VALUE_LEN)).toBe(true);
+    // UC-1: a declared length the one-part package does not hold.
+    expect(payloads.some((p: { len: number }) => p.len > ONE_PART_VALUE_SIZE)).toBe(true);
     expect(payloads.some((p: { kind: number }) => p.kind > 3)).toBe(true);
     // 6 is the first reserved val-type in the final text; 5 became Null.
     expect(payloads.some((p: { valType: number }) => p.valType > VAL_TYPE_NULL)).toBe(true);
@@ -330,9 +332,10 @@ describe('the reference set fixtures', () => {
     ).toBe(true);
   });
 
-  it('documents the event size the MIP fixes', () => {
+  it('documents the event size the MIP fixes and the UC-1 header', () => {
     expect(MISC_EVENT_SIZE).toBe(32 + PAYLOAD_SIZE);
-    expect(32 + 1 + 32 + 1 + 1 + MAX_VALUE_LEN).toBe(PAYLOAD_SIZE);
+    expect(32 + 1 + 32 + 1 + 2).toBe(HEADER_SIZE);
+    expect(HEADER_SIZE + ONE_PART_VALUE_SIZE).toBe(PAYLOAD_SIZE);
   });
 
   it('never mentions the state this repository used to have', () => {

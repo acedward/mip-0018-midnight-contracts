@@ -35,8 +35,9 @@ import {
   DEFAULT_INTEGER_LEN,
   EVENT_NAME,
   LEGACY_EVENT_NAME,
-  MAX_VALUE_LEN,
+  ONE_PART_VALUE_SIZE,
   PRE_MIP_EVENT_NAME,
+  TEST_EMITTER_SECRET,
   VAL_TYPE_INTEGER,
   VAL_TYPE_JSON,
   VAL_TYPE_NULL,
@@ -45,6 +46,8 @@ import {
   VAL_TYPE_URI,
   decodeInteger,
   deploy,
+  emitterSecretHashOf,
+  emitterWitnesses,
   encodeInteger,
   hex,
   pad,
@@ -59,8 +62,10 @@ const VECTOR2 = new CompactTypeVector(2, BYTES32);
 const DERIVE_TOKEN = pad(32, 'midnight:derive_token');
 const OWNER_SK = new Uint8Array(32).fill(7);
 
-type OwnerState = { secretKey: Uint8Array };
+type OwnerState = { secretKey: Uint8Array; emitterSecret: Uint8Array };
+const EMITTER_HASH = emitterSecretHashOf(TEST_EMITTER_SECRET);
 const witnesses = {
+  ...emitterWitnesses,
   wit_OwnableSK: ({ privateState }: { privateState: OwnerState }): [OwnerState, Uint8Array] => [
     privateState,
     privateState.secretKey,
@@ -87,20 +92,20 @@ function deriveColor(domainSep: Uint8Array, address: string): Uint8Array {
   return persistentCommit(VECTOR2, [domainSep, Uint8Array.from(Buffer.from(address, 'hex'))], DERIVE_TOKEN);
 }
 
-/** The MIP's 189-byte `value` field with `text` in its meaningful prefix. */
-function value189(text: string): { bytes: Uint8Array; len: bigint } {
+/** The one-part value field (188 bytes, UC-1) with `text` in its meaningful prefix. */
+function value188(text: string): { bytes: Uint8Array; len: bigint } {
   const encoded = new TextEncoder().encode(text);
-  if (encoded.length > MAX_VALUE_LEN) {
-    throw new Error(`value of ${encoded.length} bytes exceeds the ${MAX_VALUE_LEN}-byte field: ${text.slice(0, 40)}…`);
+  if (encoded.length > ONE_PART_VALUE_SIZE) {
+    throw new Error(`value of ${encoded.length} bytes exceeds the ${ONE_PART_VALUE_SIZE}-byte one-part field: ${text.slice(0, 40)}…`);
   }
-  const bytes = new Uint8Array(MAX_VALUE_LEN);
+  const bytes = new Uint8Array(ONE_PART_VALUE_SIZE);
   bytes.set(encoded);
   return { bytes, len: BigInt(encoded.length) };
 }
 
-/** The 189-byte field holding `serialize<Uint<8*length>, length>(value)`, little-endian. */
-function value189Integer(value: number, length = DEFAULT_INTEGER_LEN): { bytes: Uint8Array; len: bigint } {
-  const bytes = new Uint8Array(MAX_VALUE_LEN);
+/** The 188-byte field holding `serialize<Uint<8*length>, length>(value)`, little-endian. */
+function value188Integer(value: number, length = DEFAULT_INTEGER_LEN): { bytes: Uint8Array; len: bigint } {
+  const bytes = new Uint8Array(ONE_PART_VALUE_SIZE);
   bytes.set(encodeInteger(BigInt(value), length));
   return { bytes, len: BigInt(length) };
 }
@@ -169,7 +174,7 @@ function valTypeOf(step: Step): number {
 }
 
 /**
- * The 189-byte `value` field a metadata step carries, by its val-type.
+ * The 188-byte one-part `value` field a metadata step carries, by its val-type.
  *
  * - Null (5): no bytes at all — `val-len` MUST be 0 (MIP section 2.1).
  * - integer (2): the number stated in decimal, serialized little-endian as
@@ -182,10 +187,10 @@ function stepValue(step: Step): { bytes: Uint8Array; len: bigint } {
     if (step.value !== undefined) {
       throw new Error(`a val-type 5 (Null) step carries no value; got "${step.value}"`);
     }
-    return { bytes: new Uint8Array(MAX_VALUE_LEN), len: 0n };
+    return { bytes: new Uint8Array(ONE_PART_VALUE_SIZE), len: 0n };
   }
-  if (valType === VAL_TYPE_INTEGER) return value189Integer(Number(step.value!));
-  return value189(step.value!);
+  if (valType === VAL_TYPE_INTEGER) return value188Integer(Number(step.value!));
+  return value188(step.value!);
 }
 
 const referenceSet = JSON.parse(readFileSync(join(ROOT, 'deployments', 'reference-set.json'), 'utf8')) as {
@@ -254,68 +259,82 @@ function newContract(template: string) {
 
 function constructorArgs(row: Row): unknown[] {
   const domain = pad(32, row.domain ?? '');
-  const nameBytes = pad(32, row.name);
-  const nameLen = BigInt(new TextEncoder().encode(row.name).length);
-  const symbolBytes = pad(32, row.symbol);
-  const symbolLen = BigInt(new TextEncoder().encode(row.symbol).length);
   const decimals = BigInt(row.decimals);
 
   switch (row.template) {
     case 'NativeShieldedToken':
-      return [ownerEither, domain, row.name, nameBytes, nameLen, row.symbol, symbolBytes, symbolLen, decimals];
+      return [EMITTER_HASH, domain, row.name, row.symbol, decimals];
     case 'NativeUnshieldedToken':
-      return [ownerEither, domain, nameBytes, nameLen, symbolBytes, symbolLen, decimals, BigInt(row.kind)];
+      return [EMITTER_HASH, domain, decimals, BigInt(row.kind)];
     case 'NativeDualToken':
-      return [ownerEither, domain, nameBytes, nameLen, symbolBytes, symbolLen, decimals];
+      return [EMITTER_HASH, domain, decimals];
     case 'ShieldedCollection':
-      return [ownerEither, row.name, row.symbol, symbolBytes, symbolLen, decimals];
+      return [EMITTER_HASH, row.name, row.symbol, decimals];
     case 'LedgerToken':
-      return [ownerEither, domain, row.name, nameBytes, nameLen, row.symbol, symbolBytes, symbolLen, decimals];
+      return [EMITTER_HASH, ownerEither, domain, row.name, row.symbol, decimals];
     default:
       throw new Error(`unknown template: ${row.template}`);
   }
 }
 
-/** Translates one matrix step into a circuit call. */
-function callFor(row: Row, step: Step): [string, unknown[]] {
+/**
+ * MIP Appendix A's three core fields as three one-declaration setter argument lists
+ * (UC-1: one declaration per call): name, symbol, decimals as `Uint<128>`.
+ */
+function standardFieldArgs(name: string, symbol: string, decimals: number): unknown[][] {
+  const n = value188(name);
+  const s = value188(symbol);
+  const d = value188Integer(decimals);
+  return [
+    [pad(32, 'name'), BigInt(VAL_TYPE_STRING), n.len, n.bytes],
+    [pad(32, 'symbol'), BigInt(VAL_TYPE_STRING), s.len, s.bytes],
+    [pad(32, 'decimals'), BigInt(VAL_TYPE_INTEGER), d.len, d.bytes],
+  ];
+}
+
+/**
+ * Translates one matrix step into the template's circuit calls. The templates emit ONE
+ * declaration per call (UC-1), so a `publish*` step is three setter calls.
+ */
+function callFor(row: Row, step: Step): [string, unknown[]][] {
   const pieceDomain = step.piece ? pad(32, `cnst:${step.piece}`) : undefined;
   switch (step.op) {
     case 'publishMetadata':
-      return ['publishMetadata', []];
+      return standardFieldArgs(row.name, row.symbol, row.decimals).map((args) => ['setMetadata', args]);
     case 'publishUnshielded':
-      return ['publishUnshielded', []];
+      return standardFieldArgs(row.name, row.symbol, row.decimals).map((args) => ['setMetadata', [0n, ...args]]);
     case 'publishShielded':
-      return ['publishShielded', []];
+      return standardFieldArgs(row.name, row.symbol, row.decimals).map((args) => ['setMetadata', [1n, ...args]]);
     case 'setMetadata': {
       const { bytes, len } = stepValue(step);
       const key = pad(32, step.key!);
       const valType = BigInt(valTypeOf(step));
       return row.template === 'NativeDualToken'
-        ? ['setMetadata', [BigInt(row.kind), key, valType, len, bytes]]
-        : ['setMetadata', [key, valType, len, bytes]];
+        ? [['setMetadata', [BigInt(row.kind), key, valType, len, bytes]]]
+        : [['setMetadata', [key, valType, len, bytes]]];
     }
     case 'mint':
       return row.template === 'NativeShieldedToken'
-        ? ['mint', [zswapRecipient(step.to!), BigInt(step.amount!), pad(32, step.nonce!)]]
-        : ['mint', [userRecipient(step.to!), BigInt(step.amount!)]];
+        ? [['mint', [zswapRecipient(step.to!), BigInt(step.amount!), pad(32, step.nonce!)]]]
+        : [['mint', [userRecipient(step.to!), BigInt(step.amount!)]]];
     case 'mintShielded':
-      return ['mintShielded', [zswapRecipient(step.to!), BigInt(step.amount!), pad(32, step.nonce!)]];
+      return [['mintShielded', [zswapRecipient(step.to!), BigInt(step.amount!), pad(32, step.nonce!)]]];
     case 'mintUnshielded':
-      return ['mintUnshielded', [userRecipient(step.to!), BigInt(step.amount!)]];
+      return [['mintUnshielded', [userRecipient(step.to!), BigInt(step.amount!)]]];
     case 'ledgerMint':
-      return ['mint', [ledgerAccount(step.to!), BigInt(step.amount!)]];
+      return [['mint', [ledgerAccount(step.to!), BigInt(step.amount!)]]];
     case 'transfer':
-      return ['transfer', [ledgerAccount(step.to!), BigInt(step.amount!)]];
+      return [['transfer', [ledgerAccount(step.to!), BigInt(step.amount!)]]];
     case 'mintPiece':
-      return ['mintPiece', [pieceDomain, zswapRecipient(step.to!), pad(32, step.nonce!)]];
+      return [['mintPiece', [pieceDomain, zswapRecipient(step.to!), pad(32, step.nonce!)]]];
     case 'publishPiece':
-      return [
-        'publishPiece',
-        [pieceDomain, pad(32, step.pieceName!), BigInt(new TextEncoder().encode(step.pieceName!).length)],
-      ];
+      return standardFieldArgs(step.pieceName!, row.symbol, row.decimals).map((args) => [
+        'setPieceTrait',
+        [pieceDomain, ...args],
+      ]);
     case 'setPieceTrait': {
       const { bytes, len } = stepValue(step);
-      return ['setPieceTrait', [pieceDomain, pad(32, step.key!), BigInt(valTypeOf(step)), len, bytes]];
+      return [['setPieceTrait', [pieceDomain, pad(32, step.key!), BigInt(valTypeOf(step)), len, bytes]]];
     }
     default:
       throw new Error(`unknown step: ${step.op}`);
@@ -324,12 +343,15 @@ function callFor(row: Row, step: Step): [string, unknown[]] {
 
 async function runRow(row: Row) {
   const address = addressFor(row.id);
-  const contract = await deploy<OwnerState>(newContract(row.template) as never, { secretKey: OWNER_SK }, constructorArgs(row), {
-    address,
-  });
+  const contract = await deploy<OwnerState>(
+    newContract(row.template) as never,
+    { secretKey: OWNER_SK, emitterSecret: TEST_EMITTER_SECRET },
+    constructorArgs(row),
+    { address },
+  );
 
   for (const [index, step] of row.steps.entries()) {
-    const [circuit, args] = callFor(row, step);
+   for (const [circuit, args] of callFor(row, step)) {
     const call = await contract.call(circuit, ...args);
 
     for (const event of call.events) {
@@ -383,6 +405,7 @@ async function runRow(row: Row) {
         });
       }
     }
+   }
   }
 
   // Colour vectors: what the contract says, and what an observer derives.
@@ -573,7 +596,7 @@ async function runRow(row: Row) {
 async function runNegatives() {
   const address = addressFor('PROBE');
   const probe = await deploy<Record<string, never>>(new MetadataProbe({}) as never, {}, [], { address });
-  const empty = new Uint8Array(MAX_VALUE_LEN);
+  const empty = new Uint8Array(ONE_PART_VALUE_SIZE);
   const fill = (bytes: number[]): Uint8Array => Uint8Array.from([...bytes, ...empty.subarray(bytes.length)]);
 
   interface Case {
@@ -609,7 +632,7 @@ async function runNegatives() {
       ...key('name'),
       valType: VAL_TYPE_STRING,
       len: 10,
-      value: value189('Old Name!!').bytes,
+      value: value188('Old Name!!').bytes,
     },
     {
       why: 'the `mip-xxxx:token-metadata[v1]` PLACEHOLDER name of the #315 draft, which is the name this repository\'s Stagenet reference set was actually deployed with: the event name is the layout version, so a MIP-0018 v1 consumer ignores it too — a consumer that wants to show the legacy deployment must recognise the second name explicitly and validate it under the draft rules',
@@ -620,19 +643,19 @@ async function runNegatives() {
       ...key('name'),
       valType: VAL_TYPE_STRING,
       len: 13,
-      value: value189('Shielded Star').bytes,
+      value: value188('Shielded Star').bytes,
     },
     // ---- MIP section 2.2: transport validation ---------------------------
     {
-      why: 'val-len 200 is above the 189-byte value field',
-      mip: '2.2',
+      why: 'UC-1: val-len 189 in a one-part package — the package holds 188 value bytes (68 + 189 > 256), so the declared length is beyond the package',
+      mip: 'UC-1',
       expect: 'rejected',
-      reason: 'val_len_too_long',
+      reason: 'val_len_beyond_package',
       kind: 1,
       ...key('name'),
       valType: VAL_TYPE_STRING,
-      len: 200,
-      value: new Uint8Array(MAX_VALUE_LEN).fill(0x41),
+      len: 189,
+      value: new Uint8Array(ONE_PART_VALUE_SIZE).fill(0x41),
     },
     {
       why: 'an empty key: all 32 bytes NUL, so nothing is left after trimming',
@@ -644,7 +667,7 @@ async function runNegatives() {
       keyLabel: '',
       valType: VAL_TYPE_STRING,
       len: 4,
-      value: value189('void').bytes,
+      value: value188('void').bytes,
     },
     {
       why: 'a `/metadata/` key that is not a valid RFC 6901 pointer: `~2` is not one of the two legal escapes (`~0`, `~1`)',
@@ -655,7 +678,7 @@ async function runNegatives() {
       ...key('/metadata/~2'),
       valType: VAL_TYPE_STRING,
       len: 3,
-      value: value189('bad').bytes,
+      value: value188('bad').bytes,
     },
     // ---- MIP section 2.1: the val-type byte ------------------------------
     {
@@ -667,7 +690,7 @@ async function runNegatives() {
       ...key('description'),
       valType: VAL_TYPE_NULL,
       len: 4,
-      value: value189('five').bytes,
+      value: value188('five').bytes,
     },
     {
       why: 'val-type 6, the FIRST reserved value in the final text (the #315 draft reserved from 5, which is now Null)',
@@ -678,7 +701,7 @@ async function runNegatives() {
       ...key('name'),
       valType: 6,
       len: 3,
-      value: value189('six').bytes,
+      value: value188('six').bytes,
     },
     {
       why: 'val-type 7, a reserved value in the middle of the range',
@@ -689,7 +712,7 @@ async function runNegatives() {
       ...key('description'),
       valType: 7,
       len: 5,
-      value: value189('seven').bytes,
+      value: value188('seven').bytes,
     },
     {
       why: 'val-type 255, the top of the reserved range',
@@ -700,7 +723,7 @@ async function runNegatives() {
       ...key('symbol'),
       valType: 255,
       len: 3,
-      value: value189('MAX').bytes,
+      value: value188('MAX').bytes,
     },
     {
       why: 'val-type 1 carrying bytes that are not valid UTF-8',
@@ -733,7 +756,7 @@ async function runNegatives() {
       ...key('supplyCap'),
       valType: VAL_TYPE_INTEGER,
       len: 32,
-      value: new Uint8Array(MAX_VALUE_LEN).fill(0x01),
+      value: new Uint8Array(ONE_PART_VALUE_SIZE).fill(0x01),
     },
     {
       why: 'val-type 3 carrying a JSON FRAGMENT — the head of the six-part `metadata/<n>` document this repository published against the #315 draft. The final text requires ONE complete JSON value and defines no reassembly, so the part is rejected, not collected',
@@ -744,7 +767,7 @@ async function runNegatives() {
       ...key('metadata/0'),
       valType: VAL_TYPE_JSON,
       len: 67,
-      value: value189('{"description":"A nebula published in parts, because one TokenMetad').bytes,
+      value: value188('{"description":"A nebula published in parts, because one TokenMetad').bytes,
     },
     {
       why: 'val-type 4 carrying a relative reference instead of an absolute URI',
@@ -755,7 +778,7 @@ async function runNegatives() {
       ...key('tokenUri'),
       valType: VAL_TYPE_URI,
       len: 22,
-      value: value189('/constellations/orion').bytes,
+      value: value188('/constellations/orion').bytes,
     },
     // ---- MIP section 3: the kind byte ------------------------------------
     {
@@ -767,7 +790,7 @@ async function runNegatives() {
       ...key('name'),
       valType: VAL_TYPE_STRING,
       len: 4,
-      value: value189('four').bytes,
+      value: value188('four').bytes,
     },
     {
       why: 'kind 255 — the pre-MIP layout treated the high bits as flags; they are not',
@@ -778,7 +801,7 @@ async function runNegatives() {
       ...key('name'),
       valType: VAL_TYPE_STRING,
       len: 3,
-      value: value189('max').bytes,
+      value: value188('max').bytes,
     },
     {
       why: 'kind 3 — shielded ledger: valid and applied, but purely informative (no colour)',
@@ -788,7 +811,7 @@ async function runNegatives() {
       ...key('name'),
       valType: VAL_TYPE_STRING,
       len: 12,
-      value: value189('Hidden Ledge').bytes,
+      value: value188('Hidden Ledge').bytes,
     },
     // ---- MIP sections 5.1, 5.2, 6.2: applied, but awkward -----------------
     {
@@ -800,7 +823,7 @@ async function runNegatives() {
       keyLabel: '<non-UTF-8 key fffe01>',
       valType: VAL_TYPE_STRING,
       len: 4,
-      value: value189('odd!').bytes,
+      value: value188('odd!').bytes,
     },
     {
       why: 'val-len 0 on a free trait: "present, empty" at the transport level',
@@ -823,7 +846,7 @@ async function runNegatives() {
       value: fill([0xde, 0xad, 0xbe, 0xef]),
     },
     {
-      why: 'val-type 5 (Null) done properly — val-len 0 and 189 NUL bytes: APPLIED, and it sets the key\'s current value to Null. Distinct from an empty string and from the JSON literal `null`; the key\'s earlier values remain history',
+      why: 'val-type 5 (Null) done properly — val-len 0 and 188 NUL bytes: APPLIED, and it sets the key\'s current value to Null. Distinct from an empty string and from the JSON literal `null`; the key\'s earlier values remain history',
       mip: '2.1',
       expect: 'applied',
       kind: 1,
@@ -833,14 +856,14 @@ async function runNegatives() {
       value: empty,
     },
     {
-      why: 'val-type 5 (Null) whose 189 value bytes are NOT NUL: emitters SHOULD zero them, consumers MUST ignore them, so this is applied and identical in meaning to the case above',
+      why: 'val-type 5 (Null) whose 188 value bytes are NOT NUL: emitters SHOULD zero them, consumers MUST ignore them, so this is applied and identical in meaning to the case above',
       mip: '2.2',
       expect: 'applied',
       kind: 1,
       ...key('hemisphere'),
       valType: VAL_TYPE_NULL,
       len: 0,
-      value: new Uint8Array(MAX_VALUE_LEN).fill(0x5a),
+      value: new Uint8Array(ONE_PART_VALUE_SIZE).fill(0x5a),
     },
     {
       why: 'val-type 3 carrying a JSON SCALAR rather than an object: the final text allows object, array and scalar values, so this is applied',
@@ -850,7 +873,7 @@ async function runNegatives() {
       ...key('magnitudeJson'),
       valType: VAL_TYPE_JSON,
       len: 4,
-      value: value189('1.25').bytes,
+      value: value188('1.25').bytes,
     },
     {
       why: 'a valid RFC 6901 pointer key (MIP Appendix A\'s `/metadata/0` example) with a UTF-8 value: applied, and nothing about arrays, nesting or assembly follows from the path',
@@ -860,7 +883,7 @@ async function runNegatives() {
       ...key('/metadata/0'),
       valType: VAL_TYPE_STRING,
       len: 11,
-      value: value189('hello world').bytes,
+      value: value188('hello world').bytes,
     },
     {
       why: 'a pointer key with both legal escapes, `/metadata/a~1b~0c`: applied — `~1` is a literal `/` and `~0` a literal `~` inside one reference token',
@@ -870,7 +893,7 @@ async function runNegatives() {
       ...key('/metadata/a~1b~0c'),
       valType: VAL_TYPE_STRING,
       len: 2,
-      value: value189('ok').bytes,
+      value: value188('ok').bytes,
     },
     {
       why: 'decimals as `Uint<24>` (val-len 3) instead of Appendix A\'s recommended `Uint<128>`: every permitted width 1..31 MUST be accepted and decoded little-endian, so this is applied AND projects to 6 — `Uint<128>` is an emitter default, not a decoder fallback',
@@ -892,7 +915,7 @@ async function runNegatives() {
       ...key('decimals'),
       valType: VAL_TYPE_STRING,
       len: 1,
-      value: value189('6').bytes,
+      value: value188('6').bytes,
     },
     {
       why: 'the well-known key `name` carried as JSON instead of a string: applied as a trait, projection fails',
@@ -903,7 +926,7 @@ async function runNegatives() {
       ...key('name'),
       valType: VAL_TYPE_JSON,
       len: 15,
-      value: value189('{"name":"json"}').bytes,
+      value: value188('{"name":"json"}').bytes,
     },
     {
       why: 'decimals 99: the right type, but above Appendix A’s 36 — applied, projection fails',
@@ -925,7 +948,7 @@ async function runNegatives() {
       ...key('symbol'),
       valType: VAL_TYPE_STRING,
       len: 40,
-      value: value189('A'.repeat(40)).bytes,
+      value: value188('A'.repeat(40)).bytes,
     },
     {
       why: 'an empty name (val-len 0): "present, empty" at transport, but Appendix A wants 1..189 — applied, projection fails',
@@ -947,12 +970,15 @@ async function runNegatives() {
       ...key('tokenUri'),
       valType: VAL_TYPE_URI,
       len: 26,
-      value: value189('ftp://example.invalid/x.png').bytes,
+      value: value188('ftp://example.invalid/x.png').bytes,
     },
   ];
 
   const out: Record<string, unknown>[] = [];
   for (const c of cases) {
+    // The two ignored names keep their emitters' one-byte val-len, 189-byte value layout.
+    const legacyLayout = c.legacyName || c.preMipName;
+    const value = legacyLayout ? Uint8Array.from([...c.value, 0]) : c.value;
     const { events: emitted } = await probe.call(
       c.legacyName ? 'publishLegacyName' : c.preMipName ? 'publishPreMipName' : 'publishRaw',
       pad(32, 'umbra:probe'),
@@ -960,7 +986,7 @@ async function runNegatives() {
       c.key,
       BigInt(c.valType),
       BigInt(c.len),
-      c.value,
+      value,
     );
     const event = emitted[0];
     const verdict = validateTokenMetadataEvent(event);
@@ -1007,7 +1033,7 @@ const negatives = await runNegatives();
 
 mkdirSync(OUT, { recursive: true });
 const provenance = {
-  standard: `MIP-0018 (MIP PR #325), mips/mip-0018-on-chain-token-metadata.md @ 37a3471; event name "${EVENT_NAME}". A v1 consumer IGNORES every other name, including this repository's pre-MIP "${LEGACY_EVENT_NAME}" and the #315 draft placeholder "${PRE_MIP_EVENT_NAME}" that the Stagenet reference set in fixtures/stagenet/ was deployed with (MIP sections 1 and 8).`,
+  standard: `MIP-0018 (MIP PR #325), mips/mip-0018-on-chain-token-metadata.md @ 37a3471, on the UC-1 layout (an amendment in development: 2-byte little-endian val-len at offset 66, value from offset 68, packages of 256·k bytes under the Multi-Part Event rule; see TOKEN-METADATA.md); event name "${EVENT_NAME}". A consumer IGNORES every other name, including this repository's pre-MIP "${LEGACY_EVENT_NAME}" and the #315 draft placeholder "${PRE_MIP_EVENT_NAME}" that the Stagenet reference set in fixtures/stagenet/ was deployed with (MIP sections 1 and 8).`,
   source: 'Compact simulator (@midnight-ntwrk/compact-runtime 0.19.0), compactc 0.34.0',
   producedBy: 'scripts/export-simulator-fixtures.ts',
   note: 'Real compiled-contract output, executed in process. Contract addresses are sha256("umbra:00020:<row id>") so everything here is reproducible; there are no block heights, transaction hashes or indexer event ids, and `eventId` is simply the emission order across the whole corpus. Token rows are keyed by the MIP\'s identity `(contractAddress, domainSep, kind 0..3)`; `privacy` and `storage` are derived from the kind byte and `status` is one of observed | declared | described (MIP section 7.2). val-type 2 values are the little-endian Compact serialization of `Uint<8*val-len>` (MIP section 2.1), and `decimals` is emitted as `Uint<128>`, i.e. val-len 16. A val-type 5 (Null) event sets the key\'s CURRENT value to Null without erasing history: in expected-tokens.json the projected column it fed is absent and a non-projected key appears in `traits` with `valType: 5` — a consumer may instead delete the row.',

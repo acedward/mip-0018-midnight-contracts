@@ -233,21 +233,31 @@
     }
   ],
   "witnesses": [
+    {
+      "name": "emitterSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    }
   ],
   "contracts": [
   ],
   "ledger": [
     {
-      "name": "_publishedUnshielded",
+      "name": "emitterSecretHash",
       "index": 0,
       "exported": true,
       "storage": "Cell",
       "type": {
-        "type-name": "Boolean"
+        "type-name": "Bytes",
+        "length": 32
       }
     },
     {
-      "name": "_publishedShielded",
+      "name": "_publishedUnshielded",
       "index": 1,
       "exported": true,
       "storage": "Cell",
@@ -256,8 +266,17 @@
       }
     },
     {
-      "name": "_mints",
+      "name": "_publishedShielded",
       "index": 2,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "_mints",
+      "index": 3,
       "exported": true,
       "storage": "Counter"
     }

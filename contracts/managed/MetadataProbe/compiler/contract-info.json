@@ -40,75 +40,14 @@
           "name": "valLen",
           "type": {
             "type-name": "Uint",
-            "maxval": 255
+            "maxval": 65535
           }
         },
         {
           "name": "value",
           "type": {
             "type-name": "Bytes",
-            "length": 189
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
-      }
-    },
-    {
-      "name": "publishStandard",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-        {
-          "name": "domainSep",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        },
-        {
-          "name": "kind",
-          "type": {
-            "type-name": "Uint",
-            "maxval": 255
-          }
-        },
-        {
-          "name": "name_",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        },
-        {
-          "name": "nameLen",
-          "type": {
-            "type-name": "Uint",
-            "maxval": 255
-          }
-        },
-        {
-          "name": "symbol_",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        },
-        {
-          "name": "symbolLen",
-          "type": {
-            "type-name": "Uint",
-            "maxval": 255
-          }
-        },
-        {
-          "name": "decimals_",
-          "type": {
-            "type-name": "Uint",
-            "maxval": 255
+            "length": 188
           }
         }
       ],
@@ -256,8 +195,18 @@
   ],
   "ledger": [
     {
-      "name": "_calls",
+      "name": "emitterSecretHash",
       "index": 0,
+      "exported": false,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "_calls",
+      "index": 1,
       "exported": true,
       "storage": "Counter"
     }

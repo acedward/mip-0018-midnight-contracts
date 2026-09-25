@@ -7,26 +7,26 @@
     "type": "directory",
     "contract-info.json": {
       "type": "file",
-      "size": 3944,
-      "hash": "544b2176f455b31b89fd0c855e649b958b30597d104c796f9a905c4c2629c8de"
+      "size": 4289,
+      "hash": "f2c241d8029e1126594f45c88c254c8fbfccfcc172c0140da857485686dd95f2"
     }
   },
   "contract": {
     "type": "directory",
     "index.d.ts": {
       "type": "file",
-      "size": 3587,
-      "hash": "f57e2746b26c9b43c1125eb0126329571d1ac75264d4dfdafa15872b2ff13bcc"
+      "size": 3769,
+      "hash": "72f2a0fd38a58f3d987222bcdb70b1eddc6682285afeab8f8e8373fa29cbc687"
     },
     "index.js": {
       "type": "file",
-      "size": 51123,
-      "hash": "482433202a0a8d1cf219992950dbddcf168e5f742cb0d57668f4fb0dadb6d8e5"
+      "size": 61246,
+      "hash": "2a4cc3ed407a5c6f8b2239fb38f9d200f21bed007e186b035bc6cd14bd290299"
     },
     "index.js.map": {
       "type": "file",
-      "size": 2307,
-      "hash": "8002b1dba7172070678925acb23e4efd84e13478bcabfb9a1015ffde0a44d170"
+      "size": 2833,
+      "hash": "4f0ac06cc7b18c2c9cbd963093004148db700dd0730ee73f97f78879d55884f6"
     }
   },
   "zkir": {
@@ -34,32 +34,32 @@
     "mint.bzkir": {
       "type": "file",
       "size": 673,
-      "hash": "a22bcdeece6330f436db1fe9ae5609348734cbb9760014d614ec1d165ad0eef5"
+      "hash": "d5d623c36fb7b4fe9cc786373004e1063d904076ffe7d7d1829bf1e229845ff6"
     },
     "mint.zkir": {
       "type": "file",
-      "size": 9892,
-      "hash": "7fd96b7c769e6dfc318ec0ddf667ff8951e993df50d7f924c5fbf4b48597862c"
+      "size": 9893,
+      "hash": "7caefcd6b69ac75e6ab4d0b5db796009d72b3392a9d20a33cfdc253d46b22401"
     },
     "mints.bzkir": {
       "type": "file",
-      "size": 71,
-      "hash": "54256ea587373b9aaa828e2dd69b7a0a65e254eee38552fe7cc43829342cca04"
+      "size": 73,
+      "hash": "d788a8ab7e430734dbd901d3fe8c906b0f49c656cc33bdbfe3ff60ecf3f5203f"
     },
     "mints.zkir": {
       "type": "file",
-      "size": 953,
-      "hash": "ba6542ebf183e7a9eccff55f2267a05bc4b63b1ca2c7e32355d9c540831ac072"
+      "size": 992,
+      "hash": "61f945f5807f7d628a93d4d60147ced2025dca9703a7cb4983ac5ca3924e1c42"
     },
     "publishMetadata.bzkir": {
       "type": "file",
-      "size": 501,
-      "hash": "6299c2ebfc2cc262a331c03d1bc6a0115aace48b0bcdb4d48cf4e2e4facf6627"
+      "size": 595,
+      "hash": "34f48b6c73ca1154fc57e5d53d73f976a25383c8f9f79b0384aa481978939417"
     },
     "publishMetadata.zkir": {
       "type": "file",
-      "size": 6335,
-      "hash": "0410dbd7bc2127094016c5c84cf746e9e3b58929418ecbcffe68f275c2ce8a64"
+      "size": 7723,
+      "hash": "de398da7e1edcc6d886dd04f9c989f44d4991927cd1c92b47d8ec4427fa2561e"
     },
     "tokenColor.bzkir": {
       "type": "file",
@@ -76,33 +76,33 @@
     "type": "directory",
     "mint.prover": {
       "type": "file",
-      "size": 5205637,
-      "hash": "cc8b6e83c6d77c67d47e5fd9eb8964b56b75c8aa9315bd9067cd3c7092000aab"
+      "size": 5205636,
+      "hash": "5757b8d8e0cdf4f6a3ddf5c50b489258da08b37c5ce72563a01eae1bc2522a03"
     },
     "mint.verifier": {
       "type": "file",
       "size": 2119,
-      "hash": "aab76b791a6901be7e49aa66109c025a5528e6b9b6f05a2a83575e9dfe18a5fb"
+      "hash": "6d6d0e28cbe43cd4ba924d463232680bf078f5c28e8d3b723b89b6a334c205ff"
     },
     "mints.prover": {
       "type": "file",
-      "size": 22435,
-      "hash": "79744f0b6e0fcac6fe668c194382ca3da8acc530adc635602d171420848f4c5f"
+      "size": 22431,
+      "hash": "8bacaf4647d094ef575a4a0318ee73f2382afdbf8190d6e0b4c667a770251388"
     },
     "mints.verifier": {
       "type": "file",
       "size": 1351,
-      "hash": "807711f46c0753b6cd8875cb2e1267b57190402a2da7c59dd42905b3e65a91ae"
+      "hash": "3af991746814eb19ccd3006cf52f0155e8b5a26d39821497c3673f6144b71132"
     },
     "publishMetadata.prover": {
       "type": "file",
-      "size": 39843,
-      "hash": "c13864cb7badade62f34cb13f92c1338ff5895c063a8a7e2b7a520cf3f93becd"
+      "size": 2820465,
+      "hash": "61583c559ec05ca5069d6368d01b13cb270a8b82e38a863e560326faca622b50"
     },
     "publishMetadata.verifier": {
       "type": "file",
-      "size": 1351,
-      "hash": "131247548f06226b63a41b8ba95a3c6736cc4f4eb4a98124909f23588d7ff8cc"
+      "size": 2119,
+      "hash": "e3f3dcda4556dfa1cd795842b6b24965f508582252afa7ce102e1e9900387650"
     },
     "tokenColor.prover": {
       "type": "file",

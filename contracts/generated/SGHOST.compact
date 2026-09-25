@@ -4,11 +4,12 @@
 // deployments/reference-set.json row "SGHOST" (Shielded Ghost).
 //
 // Shielded Ghost (SGHOST), 0 decimals, kind byte 1, template
-// NativeShieldedToken. Every TokenMetadata payload below is a compile-time literal, so each
-// emitting circuit costs about eight rows per event (k=7) instead of the ~120 000 rows per
-// runtime event the parameterised templates in contracts/ pay — see TOKEN-METADATA.md
-// "Circuit cost" and question Q13. The bytes emitted are exactly the bytes MIP
-// section 2 fixes, val-type byte included.
+// NativeShieldedToken. Every TokenMetadata payload below is a compile-time literal (MIP-0018 on
+// the UC-1 layout: 2-byte little-endian val-len, value from offset 68), so an emitting
+// circuit costs a few rows per event plus the emitter-secret check (~4 100 rows, k=13)
+// instead of the ~120 000 rows per runtime event the parameterised templates in contracts/
+// pay — see TOKEN-METADATA.md "Circuit cost". Only the emitter (the holder of the secret
+// whose hash the constructor stores) can call an emitting circuit.
 //
 // Circuits the deployment calls, in order:
 //   mint
@@ -18,7 +19,15 @@ pragma language_version >= 0.26.0;
 import CompactStandardLibrary;
 import "../TokenMetadata" prefix TM_;
 
-export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey };
+export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey, TM_emitterSecretHash };
+
+/**
+ * @param {Bytes<32>} emitterSecretHash - `TM_emitterSecretHashOf(secret)`, computed off chain;
+ *   every emitting circuit proves knowledge of `secret` through the `emitterSecret` witness.
+ */
+constructor(emitterSecretHash: Bytes<32>) {
+  TM_initializeEmitter(emitterSecretHash);
+}
 
 /** How many mints this contract has made, for a cheap read-back after deployment. */
 export ledger _mints: Counter;

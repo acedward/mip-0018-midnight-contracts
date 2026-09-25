@@ -1,9 +1,9 @@
 import * as __compactRuntime from '@midnight-ntwrk/compact-runtime';
 __compactRuntime.checkRuntimeVersion('0.19.0');
 
-const _descriptor_0 = new __compactRuntime.CompactTypeUnsignedInteger(65535n, 2);
+const _descriptor_0 = __compactRuntime.CompactTypeBoolean;
 
-const _descriptor_1 = __compactRuntime.CompactTypeBoolean;
+const _descriptor_1 = new __compactRuntime.CompactTypeUnsignedInteger(65535n, 2);
 
 const _descriptor_2 = new __compactRuntime.CompactTypeBytes(32);
 
@@ -41,17 +41,17 @@ const _descriptor_4 = new _UserAddress_0();
 
 class _Either_0 {
   alignment() {
-    return _descriptor_1.alignment().concat(_descriptor_3.alignment().concat(_descriptor_4.alignment()));
+    return _descriptor_0.alignment().concat(_descriptor_3.alignment().concat(_descriptor_4.alignment()));
   }
   fromValue(value_0) {
     return {
-      is_left: _descriptor_1.fromValue(value_0),
+      is_left: _descriptor_0.fromValue(value_0),
       left: _descriptor_3.fromValue(value_0),
       right: _descriptor_4.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_1.toValue(value_0.is_left).concat(_descriptor_3.toValue(value_0.left).concat(_descriptor_4.toValue(value_0.right)));
+    return _descriptor_0.toValue(value_0.is_left).concat(_descriptor_3.toValue(value_0.left).concat(_descriptor_4.toValue(value_0.right)));
   }
 }
 
@@ -61,31 +61,31 @@ const _descriptor_6 = new __compactRuntime.CompactTypeUnsignedInteger(1844674407
 
 const _descriptor_7 = new __compactRuntime.CompactTypeUnsignedInteger(255n, 1);
 
-const _descriptor_8 = new __compactRuntime.CompactTypeBytes(288);
+const _descriptor_8 = new __compactRuntime.CompactTypeBytes(188);
 
-const _descriptor_9 = new __compactRuntime.CompactTypeBytes(189);
+const _descriptor_9 = new __compactRuntime.CompactTypeBytes(288);
+
+const _descriptor_10 = new __compactRuntime.CompactTypeVector(2, _descriptor_2);
 
 class _Either_1 {
   alignment() {
-    return _descriptor_1.alignment().concat(_descriptor_2.alignment().concat(_descriptor_2.alignment()));
+    return _descriptor_0.alignment().concat(_descriptor_2.alignment().concat(_descriptor_2.alignment()));
   }
   fromValue(value_0) {
     return {
-      is_left: _descriptor_1.fromValue(value_0),
+      is_left: _descriptor_0.fromValue(value_0),
       left: _descriptor_2.fromValue(value_0),
       right: _descriptor_2.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_1.toValue(value_0.is_left).concat(_descriptor_2.toValue(value_0.left).concat(_descriptor_2.toValue(value_0.right)));
+    return _descriptor_0.toValue(value_0.is_left).concat(_descriptor_2.toValue(value_0.left).concat(_descriptor_2.toValue(value_0.right)));
   }
 }
 
-const _descriptor_10 = new _Either_1();
+const _descriptor_11 = new _Either_1();
 
-const _descriptor_11 = new __compactRuntime.CompactTypeUnsignedInteger(340282366920938463463374607431768211455n, 16);
-
-const _descriptor_12 = new __compactRuntime.CompactTypeVector(2, _descriptor_2);
+const _descriptor_12 = new __compactRuntime.CompactTypeUnsignedInteger(340282366920938463463374607431768211455n, 16);
 
 const _descriptor_13 = new __compactRuntime.CompactTypeUnsignedInteger(4294967295n, 4);
 
@@ -98,6 +98,9 @@ export class Contract {
     const witnesses_0 = args_0[0];
     if (typeof(witnesses_0) !== 'object') {
       throw new __compactRuntime.CompactError('first (witnesses) argument to Contract constructor is not an object');
+    }
+    if (typeof(witnesses_0.emitterSecret) !== 'function') {
+      throw new __compactRuntime.CompactError('first (witnesses) argument to Contract constructor does not contain a function-valued field named emitterSecret');
     }
     this.witnesses = witnesses_0;
     this.circuits = {
@@ -112,7 +115,7 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.callContext.currentQueryContext != undefined)) {
           __compactRuntime.typeError('tokenColor',
                                      'argument 1 (as invoked from Typescript)',
-                                     'UPROM.compact line 34 char 1',
+                                     'UPROM.compact line 43 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
@@ -142,7 +145,7 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.callContext.currentQueryContext != undefined)) {
           __compactRuntime.typeError('mints',
                                      'argument 1 (as invoked from Typescript)',
-                                     'UPROM.compact line 47 char 1',
+                                     'UPROM.compact line 56 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
@@ -166,7 +169,7 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.callContext.currentQueryContext != undefined)) {
           __compactRuntime.typeError('publishMetadata',
                                      'argument 1 (as invoked from Typescript)',
-                                     'UPROM.compact line 54 char 1',
+                                     'UPROM.compact line 63 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
@@ -192,21 +195,21 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.callContext.currentQueryContext != undefined)) {
           __compactRuntime.typeError('mint',
                                      'argument 1 (as invoked from Typescript)',
-                                     'UPROM.compact line 69 char 1',
+                                     'UPROM.compact line 79 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(recipient_0) === 'object' && typeof(recipient_0.is_left) === 'boolean' && typeof(recipient_0.left) === 'object' && recipient_0.left.bytes.buffer instanceof ArrayBuffer && recipient_0.left.bytes.BYTES_PER_ELEMENT === 1 && recipient_0.left.bytes.length === 32 && typeof(recipient_0.right) === 'object' && recipient_0.right.bytes.buffer instanceof ArrayBuffer && recipient_0.right.bytes.BYTES_PER_ELEMENT === 1 && recipient_0.right.bytes.length === 32)) {
           __compactRuntime.typeError('mint',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'UPROM.compact line 69 char 1',
+                                     'UPROM.compact line 79 char 1',
                                      'struct Either<is_left: Boolean, left: struct ContractAddress<bytes: Bytes<32>>, right: struct UserAddress<bytes: Bytes<32>>>',
                                      recipient_0)
         }
         if (!(typeof(amount_0) === 'bigint' && amount_0 >= 0n && amount_0 <= 18446744073709551615n)) {
           __compactRuntime.typeError('mint',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'UPROM.compact line 69 char 1',
+                                     'UPROM.compact line 79 char 1',
                                      'Uint<0..18446744073709551616>',
                                      amount_0)
         }
@@ -243,12 +246,16 @@ export class Contract {
     };
   }
   async initialState(...args_0) {
-    if (args_0.length !== 1) {
-      throw new __compactRuntime.CompactError(`Contract state constructor: expected 1 argument (as invoked from Typescript), received ${args_0.length}`);
+    if (args_0.length !== 2) {
+      throw new __compactRuntime.CompactError(`Contract state constructor: expected 2 arguments (as invoked from Typescript), received ${args_0.length}`);
     }
     const constructorContext_0 = args_0[0];
+    const emitterSecretHash_0 = args_0[1];
     if (typeof(constructorContext_0) !== 'object') {
       throw new __compactRuntime.CompactError(`Contract state constructor: expected 'constructorContext' in argument 1 (as invoked from Typescript) to be an object`);
+    }
+    if (!('initialPrivateState' in constructorContext_0)) {
+      throw new __compactRuntime.CompactError(`Contract state constructor: expected 'initialPrivateState' in argument 1 (as invoked from Typescript)`);
     }
     if (!('initialZswapLocalState' in constructorContext_0)) {
       throw new __compactRuntime.CompactError(`Contract state constructor: expected 'initialZswapLocalState' in argument 1 (as invoked from Typescript)`);
@@ -256,8 +263,16 @@ export class Contract {
     if (typeof(constructorContext_0.initialZswapLocalState) !== 'object') {
       throw new __compactRuntime.CompactError(`Contract state constructor: expected 'initialZswapLocalState' in argument 1 (as invoked from Typescript) to be an object`);
     }
+    if (!(emitterSecretHash_0.buffer instanceof ArrayBuffer && emitterSecretHash_0.BYTES_PER_ELEMENT === 1 && emitterSecretHash_0.length === 32)) {
+      __compactRuntime.typeError('Contract state constructor',
+                                 'argument 1 (argument 2 as invoked from Typescript)',
+                                 'UPROM.compact line 28 char 1',
+                                 'Bytes<32>',
+                                 emitterSecretHash_0)
+    }
     const state_0 = new __compactRuntime.ContractState();
     let stateValue_0 = __compactRuntime.StateValue.newArray();
+    stateValue_0 = stateValue_0.arrayPush(__compactRuntime.StateValue.newNull());
     stateValue_0 = stateValue_0.arrayPush(__compactRuntime.StateValue.newNull());
     stateValue_0 = stateValue_0.arrayPush(__compactRuntime.StateValue.newNull());
     state_0.data = new __compactRuntime.ChargedState(stateValue_0);
@@ -279,8 +294,8 @@ export class Contract {
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_7.toValue(0n),
                                                                                               alignment: _descriptor_7.alignment() }).encode() } },
                                        { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(false),
-                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(new Uint8Array(32)),
+                                                                                              alignment: _descriptor_2.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } }]);
     __compactRuntime.queryLedgerState(context,
                                       partialProofData,
@@ -289,9 +304,22 @@ export class Contract {
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_7.toValue(1n),
                                                                                               alignment: _descriptor_7.alignment() }).encode() } },
                                        { push: { storage: true,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(false),
+                                                                                              alignment: _descriptor_0.alignment() }).encode() } },
+                                       { ins: { cached: false, n: 1 } }]);
+    __compactRuntime.queryLedgerState(context,
+                                      partialProofData,
+                                      [
+                                       { push: { storage: false,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_7.toValue(2n),
+                                                                                              alignment: _descriptor_7.alignment() }).encode() } },
+                                       { push: { storage: true,
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_6.toValue(0n),
                                                                                               alignment: _descriptor_6.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } }]);
+    await this._initializeEmitter_0(context,
+                                    partialProofData,
+                                    emitterSecretHash_0);
     state_0.data = new __compactRuntime.ChargedState(context.callContext.currentQueryContext.state.state);
     return {
       currentContractState: state_0,
@@ -369,8 +397,8 @@ export class Contract {
                                                                   alignment: _descriptor_7.alignment() } }] } },
                                        { push: { storage: false,
                                                  value: __compactRuntime.StateValue.newCell(__compactRuntime.alignedConcat(
-                                                                                              { value: _descriptor_10.toValue(tmp_0),
-                                                                                                alignment: _descriptor_10.alignment() },
+                                                                                              { value: _descriptor_11.toValue(tmp_0),
+                                                                                                alignment: _descriptor_11.alignment() },
                                                                                               { value: _descriptor_5.toValue(recipient_0),
                                                                                                 alignment: _descriptor_5.alignment() }
                                                                                             )).encode() } },
@@ -378,8 +406,8 @@ export class Contract {
                                        { dup: { n: 1 } },
                                        'member',
                                        { push: { storage: false,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_11.toValue(tmp_1),
-                                                                                              alignment: _descriptor_11.alignment() }).encode() } },
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_12.toValue(tmp_1),
+                                                                                              alignment: _descriptor_12.alignment() }).encode() } },
                                        { swap: { n: 0 } },
                                        'neg',
                                        { branch: { skip: 4 } },
@@ -420,14 +448,14 @@ export class Contract {
                                                            value: { value: _descriptor_7.toValue(6n),
                                                                     alignment: _descriptor_7.alignment() } }] } },
                                          { push: { storage: false,
-                                                   value: __compactRuntime.StateValue.newCell({ value: _descriptor_10.toValue(tmp_2),
-                                                                                                alignment: _descriptor_10.alignment() }).encode() } },
+                                                   value: __compactRuntime.StateValue.newCell({ value: _descriptor_11.toValue(tmp_2),
+                                                                                                alignment: _descriptor_11.alignment() }).encode() } },
                                          { dup: { n: 1 } },
                                          { dup: { n: 1 } },
                                          'member',
                                          { push: { storage: false,
-                                                   value: __compactRuntime.StateValue.newCell({ value: _descriptor_11.toValue(tmp_3),
-                                                                                                alignment: _descriptor_11.alignment() }).encode() } },
+                                                   value: __compactRuntime.StateValue.newCell({ value: _descriptor_12.toValue(tmp_3),
+                                                                                                alignment: _descriptor_12.alignment() }).encode() } },
                                          { swap: { n: 0 } },
                                          'neg',
                                          { branch: { skip: 4 } },
@@ -442,14 +470,116 @@ export class Contract {
     }
     return color_0;
   }
+  _persistentHash_0(value_0) {
+    const result_0 = __compactRuntime.persistentHash(_descriptor_10, value_0);
+    return result_0;
+  }
   _persistentCommit_0(value_0, rand_0) {
-    const result_0 = __compactRuntime.persistentCommit(_descriptor_12,
+    const result_0 = __compactRuntime.persistentCommit(_descriptor_10,
                                                        value_0,
                                                        rand_0);
     return result_0;
   }
   _EVENT_NAME_0() {
     return new Uint8Array([109, 105, 112, 45, 48, 48, 49, 56, 58, 116, 111, 107, 101, 110, 45, 109, 101, 116, 97, 100, 97, 116, 97, 91, 118, 49, 93, 0, 0, 0, 0, 0]);
+  }
+  _ONE_PART_VALUE_SIZE_0() { return 188n; }
+  _emitterSecret_0(context, partialProofData) {
+    const witnessContext_0 = __compactRuntime.createWitnessContext(ledger(context.callContext.currentQueryContext.state), context.callContext.currentPrivateState, context.callContext.currentQueryContext.address);
+    const [nextPrivateState_0, result_0] = this.witnesses.emitterSecret(witnessContext_0);
+    context.callContext.currentPrivateState = nextPrivateState_0;
+    if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
+      __compactRuntime.typeError('emitterSecret',
+                                 'return value',
+                                 'TokenMetadata.compact line 132 char 3',
+                                 'Bytes<32>',
+                                 result_0)
+    }
+    partialProofData.privateTranscriptOutputs.push({
+      value: _descriptor_2.toValue(result_0),
+      alignment: _descriptor_2.alignment()
+    });
+    return result_0;
+  }
+  _emitterSecretHashOf_0(secret_0) {
+    return this._persistentHash_0([new Uint8Array([109, 105, 112, 45, 48, 48, 49, 56, 58, 101, 109, 105, 116, 116, 101, 114, 58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+                                   secret_0]);
+  }
+  async _initializeEmitter_0(context, partialProofData, hash_0) {
+    __compactRuntime.assert(!this._equal_1(hash_0, new Uint8Array(32)),
+                            'TokenMetadata: zero emitter secret hash');
+    __compactRuntime.queryLedgerState(context,
+                                      partialProofData,
+                                      [
+                                       { push: { storage: false,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_7.toValue(0n),
+                                                                                              alignment: _descriptor_7.alignment() }).encode() } },
+                                       { push: { storage: true,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(hash_0),
+                                                                                              alignment: _descriptor_2.alignment() }).encode() } },
+                                       { ins: { cached: false, n: 1 } }]);
+    return [];
+  }
+  async _assertEmitter_0(context, partialProofData) {
+    __compactRuntime.assert(this._equal_2(this._emitterSecretHashOf_0(this._emitterSecret_0(context,
+                                                                                            partialProofData)),
+                                          _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                                    partialProofData,
+                                                                                                    [
+                                                                                                     { dup: { n: 0 } },
+                                                                                                     { idx: { cached: false,
+                                                                                                              pushPath: false,
+                                                                                                              path: [
+                                                                                                                     { tag: 'value',
+                                                                                                                       value: { value: _descriptor_7.toValue(0n),
+                                                                                                                                alignment: _descriptor_7.alignment() } }] } },
+                                                                                                     { popeq: { cached: false,
+                                                                                                                result: undefined } }]).value)),
+                            'TokenMetadata: caller is not the emitter');
+    return [];
+  }
+  async _emitHead_0(context,
+                    partialProofData,
+                    domainSep_0,
+                    kind_0,
+                    key_0,
+                    valType_0,
+                    valLen_0,
+                    valueHead_0)
+  {
+    let t_0;
+    __compactRuntime.queryLedgerState(context,
+                                      partialProofData,
+                                      [
+                                       { push: { storage: false,
+                                                 value: __compactRuntime.StateValue.newArray()
+                                                          .arrayPush(__compactRuntime.StateValue.newCell({ value: _descriptor_13.toValue(1n),
+                                                                                                           alignment: _descriptor_13.alignment() })).arrayPush(__compactRuntime.StateValue.newCell({ value: _descriptor_7.toValue(10n),
+                                                                                                                                                                                                     alignment: _descriptor_7.alignment() })).arrayPush(__compactRuntime.StateValue.newCell({ value: _descriptor_9.toValue((t_0 = { name:
+                                                                                                                                                                                                                                                                                                                                      this._EVENT_NAME_0(),
+                                                                                                                                                                                                                                                                                                                                    payload:
+                                                                                                                                                                                                                                                                                                                                      Uint8Array.from([...Array.from(domainSep_0,
+                                                                                                                                                                                                                                                                                                                                                                     BigInt),
+                                                                                                                                                                                                                                                                                                                                                       kind_0,
+                                                                                                                                                                                                                                                                                                                                                       ...Array.from(key_0,
+                                                                                                                                                                                                                                                                                                                                                                     BigInt),
+                                                                                                                                                                                                                                                                                                                                                       valType_0,
+                                                                                                                                                                                                                                                                                                                                                       ...Array.from(__compactRuntime.convertBigintToBytes(2,
+                                                                                                                                                                                                                                                                                                                                                                                                           valLen_0,
+                                                                                                                                                                                                                                                                                                                                                                                                           'TokenMetadata.compact line 201 char 63'),
+                                                                                                                                                                                                                                                                                                                                                                     BigInt),
+                                                                                                                                                                                                                                                                                                                                                       ...Array.from(valueHead_0,
+                                                                                                                                                                                                                                                                                                                                                                     BigInt)],
+                                                                                                                                                                                                                                                                                                                                                      Number) },
+                                                                                                                                                                                                                                                                                                                            Uint8Array.from([...Array.from(t_0.name,
+                                                                                                                                                                                                                                                                                                                                                           BigInt),
+                                                                                                                                                                                                                                                                                                                                             ...Array.from(t_0.payload,
+                                                                                                                                                                                                                                                                                                                                                           BigInt)],
+                                                                                                                                                                                                                                                                                                                                            Number))),
+                                                                                                                                                                                                                                                                                              alignment: _descriptor_9.alignment() }))
+                                                          .encode() } },
+                                       'log']);
+    return [];
   }
   async _emitTokenMetadata_0(context,
                              partialProofData,
@@ -460,35 +590,16 @@ export class Contract {
                              valLen_0,
                              value_0)
   {
-    let t_0;
-    __compactRuntime.queryLedgerState(context,
-                                      partialProofData,
-                                      [
-                                       { push: { storage: false,
-                                                 value: __compactRuntime.StateValue.newArray()
-                                                          .arrayPush(__compactRuntime.StateValue.newCell({ value: _descriptor_13.toValue(1n),
-                                                                                                           alignment: _descriptor_13.alignment() })).arrayPush(__compactRuntime.StateValue.newCell({ value: _descriptor_7.toValue(10n),
-                                                                                                                                                                                                     alignment: _descriptor_7.alignment() })).arrayPush(__compactRuntime.StateValue.newCell({ value: _descriptor_8.toValue((t_0 = { name:
-                                                                                                                                                                                                                                                                                                                                      this._EVENT_NAME_0(),
-                                                                                                                                                                                                                                                                                                                                    payload:
-                                                                                                                                                                                                                                                                                                                                      Uint8Array.from([...Array.from(domainSep_0,
-                                                                                                                                                                                                                                                                                                                                                                     BigInt),
-                                                                                                                                                                                                                                                                                                                                                       kind_0,
-                                                                                                                                                                                                                                                                                                                                                       ...Array.from(key_0,
-                                                                                                                                                                                                                                                                                                                                                                     BigInt),
-                                                                                                                                                                                                                                                                                                                                                       valType_0,
-                                                                                                                                                                                                                                                                                                                                                       valLen_0,
-                                                                                                                                                                                                                                                                                                                                                       ...Array.from(value_0,
-                                                                                                                                                                                                                                                                                                                                                                     BigInt)],
-                                                                                                                                                                                                                                                                                                                                                      Number) },
-                                                                                                                                                                                                                                                                                                                            Uint8Array.from([...Array.from(t_0.name,
-                                                                                                                                                                                                                                                                                                                                                           BigInt),
-                                                                                                                                                                                                                                                                                                                                             ...Array.from(t_0.payload,
-                                                                                                                                                                                                                                                                                                                                                           BigInt)],
-                                                                                                                                                                                                                                                                                                                                            Number))),
-                                                                                                                                                                                                                                                                                              alignment: _descriptor_8.alignment() }))
-                                                          .encode() } },
-                                       'log']);
+    __compactRuntime.assert(valLen_0 <= this._ONE_PART_VALUE_SIZE_0(),
+                            'TokenMetadata: a one-part value holds at most 188 bytes');
+    await this._emitHead_0(context,
+                           partialProofData,
+                           domainSep_0,
+                           kind_0,
+                           key_0,
+                           valType_0,
+                           valLen_0,
+                           value_0);
     return [];
   }
   _domainSep_0() {
@@ -520,13 +631,14 @@ export class Contract {
                                                                                pushPath: false,
                                                                                path: [
                                                                                       { tag: 'value',
-                                                                                        value: { value: _descriptor_7.toValue(1n),
+                                                                                        value: { value: _descriptor_7.toValue(2n),
                                                                                                  alignment: _descriptor_7.alignment() } }] } },
                                                                       { popeq: { cached: true,
                                                                                  result: undefined } }]).value);
   }
   async _publishMetadata_0(context, partialProofData) {
-    __compactRuntime.assert(!_descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
+    await this._assertEmitter_0(context, partialProofData);
+    __compactRuntime.assert(!_descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                        partialProofData,
                                                                                        [
                                                                                         { dup: { n: 0 } },
@@ -534,7 +646,7 @@ export class Contract {
                                                                                                  pushPath: false,
                                                                                                  path: [
                                                                                                         { tag: 'value',
-                                                                                                          value: { value: _descriptor_7.toValue(0n),
+                                                                                                          value: { value: _descriptor_7.toValue(1n),
                                                                                                                    alignment: _descriptor_7.alignment() } }] } },
                                                                                         { popeq: { cached: false,
                                                                                                    result: undefined } }]).value),
@@ -543,11 +655,11 @@ export class Contract {
                                       partialProofData,
                                       [
                                        { push: { storage: false,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_7.toValue(0n),
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_7.toValue(1n),
                                                                                               alignment: _descriptor_7.alignment() }).encode() } },
                                        { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(true),
-                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(true),
+                                                                                              alignment: _descriptor_0.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } }]);
     await this._emitTokenMetadata_0(context,
                                     partialProofData,
@@ -556,7 +668,7 @@ export class Contract {
                                     new Uint8Array([110, 97, 109, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
                                     1n,
                                     18n,
-                                    new Uint8Array([85, 110, 115, 104, 105, 101, 108, 100, 101, 100, 32, 80, 114, 111, 109, 105, 115, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+                                    new Uint8Array([85, 110, 115, 104, 105, 101, 108, 100, 101, 100, 32, 80, 114, 111, 109, 105, 115, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
     await this._emitTokenMetadata_0(context,
                                     partialProofData,
                                     new Uint8Array([117, 109, 98, 114, 97, 58, 117, 112, 114, 111, 109, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
@@ -564,7 +676,7 @@ export class Contract {
                                     new Uint8Array([115, 121, 109, 98, 111, 108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
                                     1n,
                                     5n,
-                                    new Uint8Array([85, 80, 82, 79, 77, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+                                    new Uint8Array([85, 80, 82, 79, 77, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
     await this._emitTokenMetadata_0(context,
                                     partialProofData,
                                     new Uint8Array([117, 109, 98, 114, 97, 58, 117, 112, 114, 111, 109, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
@@ -573,7 +685,7 @@ export class Contract {
                                     2n,
                                     16n,
                                     Uint8Array.from([6n,
-                                                     ...Array.from(new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+                                                     ...Array.from(new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
                                                                    BigInt)],
                                                     Number));
     return [];
@@ -588,11 +700,11 @@ export class Contract {
                                                 pushPath: true,
                                                 path: [
                                                        { tag: 'value',
-                                                         value: { value: _descriptor_7.toValue(1n),
+                                                         value: { value: _descriptor_7.toValue(2n),
                                                                   alignment: _descriptor_7.alignment() } }] } },
                                        { addi: { immediate: parseInt(__compactRuntime.valueToBigInt(
-                                                              { value: _descriptor_0.toValue(tmp_0),
-                                                                alignment: _descriptor_0.alignment() }
+                                                              { value: _descriptor_1.toValue(tmp_0),
+                                                                alignment: _descriptor_1.alignment() }
                                                                 .value
                                                             )) } },
                                        { ins: { cached: true, n: 1 } }]);
@@ -603,6 +715,14 @@ export class Contract {
                                              recipient_0);
   }
   _equal_0(x0, y0) {
+    if (!x0.every((x, i) => y0[i] === x)) { return false; }
+    return true;
+  }
+  _equal_1(x0, y0) {
+    if (!x0.every((x, i) => y0[i] === x)) { return false; }
+    return true;
+  }
+  _equal_2(x0, y0) {
     if (!x0.every((x, i) => y0[i] === x)) { return false; }
     return true;
   }
@@ -621,8 +741,8 @@ export function ledger(stateOrChargedState) {
     privateTranscriptOutputs: []
   };
   return {
-    get _published() {
-      return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
+    get TM_emitterSecretHash() {
+      return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
                                                                        partialProofData,
                                                                        [
                                                                         { dup: { n: 0 } },
@@ -631,6 +751,20 @@ export function ledger(stateOrChargedState) {
                                                                                  path: [
                                                                                         { tag: 'value',
                                                                                           value: { value: _descriptor_7.toValue(0n),
+                                                                                                   alignment: _descriptor_7.alignment() } }] } },
+                                                                        { popeq: { cached: false,
+                                                                                   result: undefined } }]).value);
+    },
+    get _published() {
+      return _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                       partialProofData,
+                                                                       [
+                                                                        { dup: { n: 0 } },
+                                                                        { idx: { cached: false,
+                                                                                 pushPath: false,
+                                                                                 path: [
+                                                                                        { tag: 'value',
+                                                                                          value: { value: _descriptor_7.toValue(1n),
                                                                                                    alignment: _descriptor_7.alignment() } }] } },
                                                                         { popeq: { cached: false,
                                                                                    result: undefined } }]).value);
@@ -644,7 +778,7 @@ export function ledger(stateOrChargedState) {
                                                                                  pushPath: false,
                                                                                  path: [
                                                                                         { tag: 'value',
-                                                                                          value: { value: _descriptor_7.toValue(1n),
+                                                                                          value: { value: _descriptor_7.toValue(2n),
                                                                                                    alignment: _descriptor_7.alignment() } }] } },
                                                                         { popeq: { cached: true,
                                                                                    result: undefined } }]).value);
@@ -654,7 +788,7 @@ export function ledger(stateOrChargedState) {
 const _emptyContext = {
   callContext: { currentQueryContext: new __compactRuntime.QueryContext(new __compactRuntime.ContractState().data, __compactRuntime.dummyContractAddress()), currentGasCost: __compactRuntime.emptyRunningCost() }
 };
-const _dummyContract = new Contract({ });
+const _dummyContract = new Contract({ emitterSecret: (...args) => undefined });
 export const pureCircuits = {
   domainSep: (...args_0) => {
     if (args_0.length !== 0) {
@@ -678,9 +812,9 @@ export const pureCircuits = {
 export const contractReferenceLocations =
   { tag: 'publicLedgerArray', indices: { } };
 export const expectedVk = {
-  'mint': 'c3b4295876fe157458f1e77c4346a0bc07794080685d03b8b32ae4f7d1a67a48',
-  'mints': '807711f46c0753b6cd8875cb2e1267b57190402a2da7c59dd42905b3e65a91ae',
-  'publishMetadata': 'e579f879613178b7fcd83af49edf876c10d9a41f99c25a438f75a4b8e244b070',
+  'mint': 'c41b7ac2527e0a7debe09154a0600b5d07fd7a7f380d77f1b026cad12dcff82a',
+  'mints': '3af991746814eb19ccd3006cf52f0155e8b5a26d39821497c3673f6144b71132',
+  'publishMetadata': 'e528f8e39e80b7607a9da87ce0b8a76efc352dd3348c60db85e4292a9eefee59',
   'tokenColor': '8858e88ac2f4a511c8eccceaeee41b55a874546b7a55d5626ef0e29b9f3bdb10',
 };
 

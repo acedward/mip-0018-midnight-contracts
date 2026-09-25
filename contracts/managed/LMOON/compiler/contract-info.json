@@ -162,13 +162,32 @@
     }
   ],
   "witnesses": [
+    {
+      "name": "emitterSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    }
   ],
   "contracts": [
   ],
   "ledger": [
     {
-      "name": "_balances",
+      "name": "emitterSecretHash",
       "index": 0,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "_balances",
+      "index": 1,
       "exported": true,
       "storage": "Map",
       "key": {
@@ -182,7 +201,7 @@
     },
     {
       "name": "_totalSupply",
-      "index": 1,
+      "index": 2,
       "exported": true,
       "storage": "Cell",
       "type": {
@@ -192,7 +211,7 @@
     },
     {
       "name": "_published",
-      "index": 2,
+      "index": 3,
       "exported": true,
       "storage": "Cell",
       "type": {

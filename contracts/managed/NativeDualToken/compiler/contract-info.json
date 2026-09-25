@@ -37,30 +37,6 @@
       }
     },
     {
-      "name": "publishUnshielded",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-      ],
-      "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
-      }
-    },
-    {
-      "name": "publishShielded",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-      ],
-      "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
-      }
-    },
-    {
       "name": "setMetadata",
       "pure": false,
       "proof": true,
@@ -90,14 +66,14 @@
           "name": "valLen",
           "type": {
             "type-name": "Uint",
-            "maxval": 255
+            "maxval": 65535
           }
         },
         {
           "name": "value",
           "type": {
             "type-name": "Bytes",
-            "length": 189
+            "length": 188
           }
         }
       ],
@@ -266,53 +242,11 @@
         "type-name": "Bytes",
         "length": 32
       }
-    },
-    {
-      "name": "owner",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-      ],
-      "result-type": {
-        "type-name": "Struct",
-        "name": "Either",
-        "elements": [
-          {
-            "name": "is_left",
-            "type": {
-              "type-name": "Boolean"
-            }
-          },
-          {
-            "name": "left",
-            "type": {
-              "type-name": "Bytes",
-              "length": 32
-            }
-          },
-          {
-            "name": "right",
-            "type": {
-              "type-name": "Struct",
-              "name": "ContractAddress",
-              "elements": [
-                {
-                  "name": "bytes",
-                  "type": {
-                    "type-name": "Bytes",
-                    "length": 32
-                  }
-                }
-              ]
-            }
-          }
-        ]
-      }
     }
   ],
   "witnesses": [
     {
-      "name": "wit_OwnableSK",
+      "name": "emitterSecret",
       "arguments": [
       ],
       "result type": {
@@ -325,131 +259,33 @@
   ],
   "ledger": [
     {
-      "name": "_isInitialized",
+      "name": "emitterSecretHash",
       "index": 0,
-      "exported": false,
+      "exported": true,
       "storage": "Cell",
       "type": {
-        "type-name": "Boolean"
-      }
-    },
-    {
-      "name": "_owner",
-      "index": 1,
-      "exported": false,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Struct",
-        "name": "Either",
-        "elements": [
-          {
-            "name": "is_left",
-            "type": {
-              "type-name": "Boolean"
-            }
-          },
-          {
-            "name": "left",
-            "type": {
-              "type-name": "Bytes",
-              "length": 32
-            }
-          },
-          {
-            "name": "right",
-            "type": {
-              "type-name": "Struct",
-              "name": "ContractAddress",
-              "elements": [
-                {
-                  "name": "bytes",
-                  "type": {
-                    "type-name": "Bytes",
-                    "length": 32
-                  }
-                }
-              ]
-            }
-          }
-        ]
+        "type-name": "Bytes",
+        "length": 32
       }
     },
     {
       "name": "_domain",
-      "index": 2,
+      "index": 1,
       "exported": true,
       "storage": "Cell",
       "type": {
         "type-name": "Bytes",
         "length": 32
-      }
-    },
-    {
-      "name": "_nameBytes",
-      "index": 3,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "_nameLen",
-      "index": 4,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Uint",
-        "maxval": 255
-      }
-    },
-    {
-      "name": "_symbolBytes",
-      "index": 5,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "_symbolLen",
-      "index": 6,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Uint",
-        "maxval": 255
       }
     },
     {
       "name": "_decimals",
-      "index": 7,
+      "index": 2,
       "exported": true,
       "storage": "Cell",
       "type": {
         "type-name": "Uint",
         "maxval": 255
-      }
-    },
-    {
-      "name": "_publishedUnshielded",
-      "index": 8,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Boolean"
-      }
-    },
-    {
-      "name": "_publishedShielded",
-      "index": 9,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Boolean"
       }
     }
   ]

@@ -4,11 +4,12 @@
 // deployments/reference-set.json row "UCOM" (Unshielded Comet).
 //
 // Unshielded Comet (UCOM), 6 decimals, kind byte 0, template
-// NativeUnshieldedToken. Every TokenMetadata payload below is a compile-time literal, so each
-// emitting circuit costs about eight rows per event (k=7) instead of the ~120 000 rows per
-// runtime event the parameterised templates in contracts/ pay — see TOKEN-METADATA.md
-// "Circuit cost" and question Q13. The bytes emitted are exactly the bytes MIP
-// section 2 fixes, val-type byte included.
+// NativeUnshieldedToken. Every TokenMetadata payload below is a compile-time literal (MIP-0018 on
+// the UC-1 layout: 2-byte little-endian val-len, value from offset 68), so an emitting
+// circuit costs a few rows per event plus the emitter-secret check (~4 100 rows, k=13)
+// instead of the ~120 000 rows per runtime event the parameterised templates in contracts/
+// pay — see TOKEN-METADATA.md "Circuit cost". Only the emitter (the holder of the secret
+// whose hash the constructor stores) can call an emitting circuit.
 //
 // Circuits the deployment calls, in order:
 //   publishMetadata (3 events)
@@ -19,7 +20,15 @@ pragma language_version >= 0.26.0;
 import CompactStandardLibrary;
 import "../TokenMetadata" prefix TM_;
 
-export { ContractAddress, Either, Maybe, UserAddress };
+export { ContractAddress, Either, Maybe, UserAddress, TM_emitterSecretHash };
+
+/**
+ * @param {Bytes<32>} emitterSecretHash - `TM_emitterSecretHashOf(secret)`, computed off chain;
+ *   every emitting circuit proves knowledge of `secret` through the `emitterSecret` witness.
+ */
+constructor(emitterSecretHash: Bytes<32>) {
+  TM_initializeEmitter(emitterSecretHash);
+}
 
 /** True once `publishMetadata` has run; it may run only once. */
 export ledger _published: Boolean;
@@ -53,14 +62,15 @@ export circuit mints(): Uint<64> {
  * @description publishMetadata — 3 TokenMetadata events, every byte a compile-time literal.
  */
 export circuit publishMetadata(): [] {
+  TM_assertEmitter();
   assert(!_published, "TokenMetadata: already published");
   _published = true;
   // name = "Unshielded Comet" (val-type 1 string, val-len 16)
-  TM_emitTokenMetadata(pad(32, "umbra:ucom"), 0, pad(32, "name"), 1, 16, pad(189, "Unshielded Comet"));
+  TM_emitTokenMetadata(pad(32, "umbra:ucom"), 0, pad(32, "name"), 1, 16, pad(188, "Unshielded Comet"));
   // symbol = "UCOM" (val-type 1 string, val-len 4)
-  TM_emitTokenMetadata(pad(32, "umbra:ucom"), 0, pad(32, "symbol"), 1, 4, pad(189, "UCOM"));
+  TM_emitTokenMetadata(pad(32, "umbra:ucom"), 0, pad(32, "symbol"), 1, 4, pad(188, "UCOM"));
   // decimals = "6" (val-type 2 integer, val-len 16)
-  TM_emitTokenMetadata(pad(32, "umbra:ucom"), 0, pad(32, "decimals"), 2, 16, Bytes[0x06, ...pad(188, "")]);
+  TM_emitTokenMetadata(pad(32, "umbra:ucom"), 0, pad(32, "decimals"), 2, 16, Bytes[0x06, ...pad(187, "")]);
 }
 
 /**

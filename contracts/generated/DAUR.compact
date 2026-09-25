@@ -4,11 +4,12 @@
 // deployments/reference-set.json row "DAUR" (Dual Aurora).
 //
 // Dual Aurora (DAUR), 6 decimals, kind byte 1, template
-// NativeDualToken. Every TokenMetadata payload below is a compile-time literal, so each
-// emitting circuit costs about eight rows per event (k=7) instead of the ~120 000 rows per
-// runtime event the parameterised templates in contracts/ pay — see TOKEN-METADATA.md
-// "Circuit cost" and question Q13. The bytes emitted are exactly the bytes MIP
-// section 2 fixes, val-type byte included.
+// NativeDualToken. Every TokenMetadata payload below is a compile-time literal (MIP-0018 on
+// the UC-1 layout: 2-byte little-endian val-len, value from offset 68), so an emitting
+// circuit costs a few rows per event plus the emitter-secret check (~4 100 rows, k=13)
+// instead of the ~120 000 rows per runtime event the parameterised templates in contracts/
+// pay — see TOKEN-METADATA.md "Circuit cost". Only the emitter (the holder of the secret
+// whose hash the constructor stores) can call an emitting circuit.
 //
 // Circuits the deployment calls, in order:
 //   publishUnshielded (3 events)
@@ -21,7 +22,15 @@ pragma language_version >= 0.26.0;
 import CompactStandardLibrary;
 import "../TokenMetadata" prefix TM_;
 
-export { ContractAddress, Either, Maybe, ShieldedCoinInfo, UserAddress, ZswapCoinPublicKey };
+export { ContractAddress, Either, Maybe, ShieldedCoinInfo, UserAddress, ZswapCoinPublicKey, TM_emitterSecretHash };
+
+/**
+ * @param {Bytes<32>} emitterSecretHash - `TM_emitterSecretHashOf(secret)`, computed off chain;
+ *   every emitting circuit proves knowledge of `secret` through the `emitterSecret` witness.
+ */
+constructor(emitterSecretHash: Bytes<32>) {
+  TM_initializeEmitter(emitterSecretHash);
+}
 
 /** One guard per kind: the two halves of this token are published separately. */
 export ledger _publishedUnshielded: Boolean;
@@ -50,28 +59,30 @@ export circuit mints(): Uint<64> {
  * @description publishUnshielded — 3 TokenMetadata events, every byte a compile-time literal.
  */
 export circuit publishUnshielded(): [] {
+  TM_assertEmitter();
   assert(!_publishedUnshielded, "TokenMetadata: already published");
   _publishedUnshielded = true;
   // name = "Dual Aurora" (val-type 1 string, val-len 11)
-  TM_emitTokenMetadata(pad(32, "umbra:daur"), 0, pad(32, "name"), 1, 11, pad(189, "Dual Aurora"));
+  TM_emitTokenMetadata(pad(32, "umbra:daur"), 0, pad(32, "name"), 1, 11, pad(188, "Dual Aurora"));
   // symbol = "DAUR" (val-type 1 string, val-len 4)
-  TM_emitTokenMetadata(pad(32, "umbra:daur"), 0, pad(32, "symbol"), 1, 4, pad(189, "DAUR"));
+  TM_emitTokenMetadata(pad(32, "umbra:daur"), 0, pad(32, "symbol"), 1, 4, pad(188, "DAUR"));
   // decimals = "6" (val-type 2 integer, val-len 16)
-  TM_emitTokenMetadata(pad(32, "umbra:daur"), 0, pad(32, "decimals"), 2, 16, Bytes[0x06, ...pad(188, "")]);
+  TM_emitTokenMetadata(pad(32, "umbra:daur"), 0, pad(32, "decimals"), 2, 16, Bytes[0x06, ...pad(187, "")]);
 }
 
 /**
  * @description publishShielded — 3 TokenMetadata events, every byte a compile-time literal.
  */
 export circuit publishShielded(): [] {
+  TM_assertEmitter();
   assert(!_publishedShielded, "TokenMetadata: already published");
   _publishedShielded = true;
   // name = "Dual Aurora" (val-type 1 string, val-len 11)
-  TM_emitTokenMetadata(pad(32, "umbra:daur"), 1, pad(32, "name"), 1, 11, pad(189, "Dual Aurora"));
+  TM_emitTokenMetadata(pad(32, "umbra:daur"), 1, pad(32, "name"), 1, 11, pad(188, "Dual Aurora"));
   // symbol = "DAUR" (val-type 1 string, val-len 4)
-  TM_emitTokenMetadata(pad(32, "umbra:daur"), 1, pad(32, "symbol"), 1, 4, pad(189, "DAUR"));
+  TM_emitTokenMetadata(pad(32, "umbra:daur"), 1, pad(32, "symbol"), 1, 4, pad(188, "DAUR"));
   // decimals = "6" (val-type 2 integer, val-len 16)
-  TM_emitTokenMetadata(pad(32, "umbra:daur"), 1, pad(32, "decimals"), 2, 16, Bytes[0x06, ...pad(188, "")]);
+  TM_emitTokenMetadata(pad(32, "umbra:daur"), 1, pad(32, "decimals"), 2, 16, Bytes[0x06, ...pad(187, "")]);
 }
 
 /** Mints the shielded half of this token (kind byte 1). */

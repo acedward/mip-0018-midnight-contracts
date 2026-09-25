@@ -7,26 +7,26 @@
     "type": "directory",
     "contract-info.json": {
       "type": "file",
-      "size": 3573,
-      "hash": "ec8ac2bca0112ea30a7a476826527c1f3a867e3dda4c3ad168352d068683363f"
+      "size": 3763,
+      "hash": "0e6266b2cd2639bdca390f4e90617ada24f515d579172e86ad0e98bde935a944"
     }
   },
   "contract": {
     "type": "directory",
     "index.d.ts": {
       "type": "file",
-      "size": 3210,
-      "hash": "fb3c9148da85064c9ecff08c87f7a3f5f42f267fca282b5e473f20582d8cfec6"
+      "size": 3303,
+      "hash": "92efbbd391ff96927056bcb57db8bb0bc6265c5de3b56a8fa6c19ca6c8dd582f"
     },
     "index.js": {
       "type": "file",
-      "size": 32889,
-      "hash": "4a83ac05caffb70087ed4222c8f3ab422ab18a43e017e8150ee5c070730a30f6"
+      "size": 37043,
+      "hash": "44dfb44fc09c6db12ce924f7ecd395016e5bbcab2ba06d464443d2a1ef2e9685"
     },
     "index.js.map": {
       "type": "file",
-      "size": 1747,
-      "hash": "6ddca28042c3923d96228e400dad2935a18e399e1d596b7616a9e81aee2e0eb7"
+      "size": 2006,
+      "hash": "32c4b87a0827d3d7b94fc8847282e289bbc38b7d1298db872efa433e219c2a9c"
     }
   },
   "zkir": {
@@ -34,22 +34,22 @@
     "mint.bzkir": {
       "type": "file",
       "size": 674,
-      "hash": "15bb56f89e969a66fca71466ca05c19ee7a0597ee36e3ae5023b8e7bddc325c3"
+      "hash": "7758401d427d45990bcd6d42abb8a028e2b6d35787d3a772f0925f76f03cdef3"
     },
     "mint.zkir": {
       "type": "file",
       "size": 9894,
-      "hash": "bc0c0f6b1cb3e12b30c2487fcc4493a413ab9cf5fb85688bb2b64a79957ae9a4"
+      "hash": "7ae7fde42fbb7b3bd843ebe9d595049a6ec747990941bac596981f4b5d2986d2"
     },
     "mints.bzkir": {
       "type": "file",
-      "size": 73,
-      "hash": "707fbade819719eb9f0e982009197252fe8e50850ba9654ca8686f0ca6c399e9"
+      "size": 71,
+      "hash": "54256ea587373b9aaa828e2dd69b7a0a65e254eee38552fe7cc43829342cca04"
     },
     "mints.zkir": {
       "type": "file",
-      "size": 992,
-      "hash": "26e84c47d8d64a8d15038852c4bb8488aa3ba39ac0d8b1fae8745d25cfeeb904"
+      "size": 953,
+      "hash": "ba6542ebf183e7a9eccff55f2267a05bc4b63b1ca2c7e32355d9c540831ac072"
     },
     "tokenColor.bzkir": {
       "type": "file",
@@ -66,23 +66,23 @@
     "type": "directory",
     "mint.prover": {
       "type": "file",
-      "size": 5205643,
-      "hash": "8326fb34143df7185cd72766630edeadf01477a8ce800efb0b421c0619dc5fe4"
+      "size": 5205645,
+      "hash": "5a8cf7da3edea43d6801a35723d019f9e87c91f9d996a148aae20c805109e1d6"
     },
     "mint.verifier": {
       "type": "file",
       "size": 2119,
-      "hash": "a45109fc884310d271d74876c0a99a4f1380202fe428867c9659da95735527a4"
+      "hash": "415b0eae3a7c039f6ba8a6796a05eee6d797a77a4f0ab9f7765ccc6e69aa083b"
     },
     "mints.prover": {
       "type": "file",
       "size": 22435,
-      "hash": "8709a160c4bf8bd12399c4012aadda4cadfbf6e8100825a1d32e013c775be6c7"
+      "hash": "79744f0b6e0fcac6fe668c194382ca3da8acc530adc635602d171420848f4c5f"
     },
     "mints.verifier": {
       "type": "file",
       "size": 1351,
-      "hash": "62bc962997f0d591fe4fd452e596f6a4b813ccd2a08b5583cd02f1fe809ffa16"
+      "hash": "807711f46c0753b6cd8875cb2e1267b57190402a2da7c59dd42905b3e65a91ae"
     },
     "tokenColor.prover": {
       "type": "file",

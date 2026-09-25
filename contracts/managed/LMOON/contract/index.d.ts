@@ -7,6 +7,7 @@ export type Either<A, B> = { is_left: boolean; left: A; right: B };
 export type Maybe<T> = { is_some: boolean; value: T };
 
 export type Witnesses<PS> = {
+  emitterSecret(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
 }
 
 export type ImpureCircuits<PS> = {
@@ -64,6 +65,7 @@ export type Circuits<PS> = {
 }
 
 export type Ledger = {
+  readonly TM_emitterSecretHash: Uint8Array;
   _balances: {
     isEmpty(): boolean;
     size(): bigint;
@@ -85,7 +87,8 @@ export declare class Contract<PS = any, W extends Witnesses<PS> = Witnesses<PS>>
   impureCircuits: ImpureCircuits<PS>;
   provableCircuits: ProvableCircuits<PS>;
   constructor(witnesses: W);
-  initialState(context: __compactRuntime.ConstructorContext<PS>): Promise<__compactRuntime.ConstructorResult<PS>>;
+  initialState(context: __compactRuntime.ConstructorContext<PS>,
+               emitterSecretHash_0: Uint8Array): Promise<__compactRuntime.ConstructorResult<PS>>;
 }
 
 export declare function ledger(state: __compactRuntime.StateValue | __compactRuntime.ChargedState): Ledger;

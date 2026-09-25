@@ -2,60 +2,41 @@
 //
 // A native shielded token with one static domain separator that describes
 // itself on chain per MIP-0018 (MIP PR #325,
-// `mips/mip-0018-on-chain-token-metadata.md` @ `37a3471`), the normative text;
-// ../TOKEN-METADATA.md points at it.
+// `mips/mip-0018-on-chain-token-metadata.md` @ `37a3471`) on the UC-1 layout
+// (2-byte `val-len`; see ./TokenMetadata.compact and ../TOKEN-METADATA.md).
 //
 // Composition:
 //   OpenZeppelin `NativeShieldedToken`  the domain, the colour, the mint, and
 //                                       the MIP-0011 name()/symbol()/decimals()
-//   OpenZeppelin `Ownable`              who may update the metadata
-//   `TokenMetadata`                     the events this repository is about
+//   `TokenMetadata`                     the events, and who may emit them
+//                                       (the emitter secret, spec 00024 Q12)
 //
-// Note on the duplicated name/symbol arguments: OpenZeppelin stores them as
-// `Opaque<"string">`, which cannot be emitted (Compact cannot serialise an
-// opaque host value into a circuit). The event path therefore needs the same
-// text a second time as NUL-padded bytes, and the deploy script derives both
-// forms from one string in the matrix.
+// ONE DECLARATION PER CALL (UC-1). The only emitting circuit is `setMetadata`,
+// and it emits exactly one declaration, so the deployer publishes `name`,
+// `symbol` and `decimals` as three calls — three intents, three packages.
+// Every value it can carry fits one event (at most 188 bytes); a longer value
+// is a multi-part package, which the literal contracts in ./generated/ emit.
 //
-// Minting is deliberately NOT owner-gated: these are reference test tokens and
-// an open mint keeps the mint circuit (already k=14) from also paying for an
-// ownership proof.
+// Minting is deliberately NOT gated: these are reference test tokens and an
+// open mint keeps the mint circuit (already k=14) from also paying for a proof.
 
 pragma language_version >= 0.26.0;
 
 import CompactStandardLibrary;
 import "./TokenMetadata" prefix TM_;
-import "../node_modules/@openzeppelin/compact-contracts/access/Ownable" prefix Ownable_;
 import "../node_modules/@openzeppelin/compact-contracts/token/NativeShieldedToken" prefix Token_;
 
-export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey };
-
-/** The token name in the byte form the metadata events carry. */
-export sealed ledger _nameBytes: Bytes<32>;
-export sealed ledger _nameLen: Uint<8>;
-/** The token symbol in the byte form the metadata events carry. */
-export sealed ledger _symbolBytes: Bytes<32>;
-export sealed ledger _symbolLen: Uint<8>;
-/** True once `publishMetadata` has run; it may run only once. */
-export ledger _published: Boolean;
+export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey, TM_emitterSecretHash };
 
 constructor(
-  owner: Either<Bytes<32>, ContractAddress>,
+  emitterSecretHash: Bytes<32>,
   domain_: Bytes<32>,
   name_: Opaque<"string">,
-  nameBytes_: Bytes<32>,
-  nameLen_: Uint<8>,
   symbol_: Opaque<"string">,
-  symbolBytes_: Bytes<32>,
-  symbolLen_: Uint<8>,
   decimals_: Uint<8>
 ) {
-  Ownable_initialize(owner);
+  TM_initializeEmitter(emitterSecretHash);
   Token_initialize(domain_, name_, symbol_, decimals_);
-  _nameBytes = disclose(nameBytes_);
-  _nameLen = disclose(nameLen_);
-  _symbolBytes = disclose(symbolBytes_);
-  _symbolLen = disclose(symbolLen_);
 }
 
 /** The token's colour: `tokenType(domainSep, this contract)`. */
@@ -81,30 +62,11 @@ export circuit decimals(): Uint<8> {
 }
 
 /**
- * @description Publishes `name`, `symbol` and `decimals` as three TokenMetadata
- * events. Callable once — a constructor cannot emit, so the deployer calls this
- * immediately after deployment, and a second call is a mistake worth failing on.
+ * @description Declares one metadata key (EIP-7496's dynamic trait update) as a
+ * one-part package. Emitter only. Last write wins for the consumer.
  */
-export circuit publishMetadata(): [] {
-  assert(!_published, "TokenMetadata: already published");
-  _published = true;
-  TM_emitStandardFields(
-    Token__domain,
-    TM_KIND_SHIELDED(),
-    _nameBytes,
-    _nameLen,
-    _symbolBytes,
-    _symbolLen,
-    Token__decimals
-  );
-}
-
-/**
- * @description Sets or replaces one metadata key (EIP-7496's dynamic trait
- * update). Owner only. Last write wins for the consumer.
- */
-export circuit setMetadata(key: Bytes<32>, valType: Uint<8>, valLen: Uint<8>, value: Bytes<189>): [] {
-  Ownable_assertOnlyOwner();
+export circuit setMetadata(key: Bytes<32>, valType: Uint<8>, valLen: Uint<16>, value: Bytes<188>): [] {
+  TM_assertEmitter();
   TM_emitTokenMetadata(
     Token__domain,
     TM_KIND_SHIELDED(),
@@ -125,9 +87,4 @@ export circuit mint(
   nonce: Bytes<32>
 ): ShieldedCoinInfo {
   return Token__mint(disclose(recipient), disclose(amount), disclose(nonce));
-}
-
-/** The current owner, for the deploy script's verification step. */
-export circuit owner(): Either<Bytes<32>, ContractAddress> {
-  return Ownable_owner();
 }

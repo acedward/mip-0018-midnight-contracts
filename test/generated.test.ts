@@ -10,7 +10,8 @@
  * simulator and comparing all 256 bytes is the cheapest way to know they cannot.
  *
  * It also pins the property Q13 rests on: the bytes a literal contract emits are
- * indistinguishable from the bytes the parameterised template in `contracts/` emits.
+ * indistinguishable from the bytes the parameterised template in `contracts/` emits —
+ * and that only the emitter (spec 00024 Q12) can make a generated contract emit.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -19,11 +20,18 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_INTEGER_LEN,
   EVENT_NAME,
-  MAX_VALUE_LEN,
+  ONE_PART_VALUE_SIZE,
   PAYLOAD_SIZE,
+  STRANGER_EMITTER_SECRET,
+  TEST_EMITTER_SECRET,
+  VAL_TYPE_INTEGER,
   VAL_TYPE_NULL,
+  VAL_TYPE_STRING,
   decodeInteger,
   deploy,
+  emitterSecretHashOf,
+  emitterWitnesses,
+  encodeInteger,
   hex,
   pad,
   validateTokenMetadataEvent,
@@ -71,13 +79,13 @@ describe('generated-matrix.json', () => {
     expect(matrix.rows.map((row) => row.id)).toEqual(referenceSet.rows.map((row) => row.id));
   });
 
-  it('never exceeds the MIP’s 189-byte value field and always declares a val-type', () => {
+  it('keeps every one-part value within 188 bytes (UC-1) and always declares a val-type', () => {
     for (const row of matrix.rows) {
       for (const step of row.steps) {
         for (const event of step.events ?? []) {
           const where = `${row.id}/${step.circuit}/${event.key}`;
-          expect(event.len, where).toBeLessThanOrEqual(MAX_VALUE_LEN);
-          expect(event.value.length, where).toBe(MAX_VALUE_LEN * 2);
+          expect(event.len, where).toBeLessThanOrEqual(ONE_PART_VALUE_SIZE);
+          expect(event.value.length, where).toBe(ONE_PART_VALUE_SIZE * 2);
           // MIP section 2.1: 0..5 are defined, 6..255 are reserved.
           expect(event.valType, where).toBeGreaterThanOrEqual(0);
           expect(event.valType, where).toBeLessThanOrEqual(VAL_TYPE_NULL);
@@ -124,7 +132,7 @@ describe('generated-matrix.json', () => {
           expect(event.len, where).toBe(DEFAULT_INTEGER_LEN);
           const value = Uint8Array.from(Buffer.from(event.value, 'hex'));
           expect(decodeInteger(value.subarray(0, DEFAULT_INTEGER_LEN)), where).toBe(BigInt(row.decimals));
-          // Every byte past the number is NUL, for the whole 189-byte field.
+          // Every byte past the number is NUL, for the whole 188-byte field.
           expect(value.subarray(1).every((b) => b === 0), where).toBe(true);
         }
       }
@@ -139,8 +147,8 @@ describe('generated-matrix.json', () => {
     expect(nulls.length).toBeGreaterThan(0);
     for (const event of nulls) {
       expect(event.len).toBe(0);
-      // Emitters SHOULD zero the ignored bytes, and this one does: all 189.
-      expect(event.value).toBe('00'.repeat(MAX_VALUE_LEN));
+      // Emitters SHOULD zero the ignored bytes, and this one does: all 188.
+      expect(event.value).toBe('00'.repeat(ONE_PART_VALUE_SIZE));
       expect(event.text).toBeNull();
     }
   });
@@ -166,16 +174,41 @@ describe('generated-matrix.json', () => {
   });
 });
 
+const EMITTER_HASH = emitterSecretHashOf(TEST_EMITTER_SECRET);
+
+/** Deploys a generated contract in the simulator with the emitter secret as private state. */
+async function deployGenerated(contract: string, secret = TEST_EMITTER_SECRET, address?: string) {
+  const { Contract } = (await import(`../contracts/managed/${contract}/contract/index.js`)) as unknown as {
+    Contract: new (witnesses: typeof emitterWitnesses) => never;
+  };
+  return deploy(new Contract(emitterWitnesses) as never, { emitterSecret: secret }, [EMITTER_HASH], {
+    ...(address ? { address } : {}),
+  });
+}
+
 for (const row of matrix.rows) {
   const emitting = row.steps.filter((step) => step.kind === 'emit');
-  if (emitting.length === 0) continue;
 
   describe(`generated ${row.id} (${row.name})`, () => {
+    it('stores the emitter-secret hash its constructor was given', async () => {
+      const { ledger } = (await import(`../contracts/managed/${row.contract}/contract/index.js`)) as unknown as {
+        ledger: (state: never) => { TM_emitterSecretHash: Uint8Array };
+      };
+      const instance = await deployGenerated(row.contract);
+      expect(hex(ledger(instance.state as never).TM_emitterSecretHash)).toBe(hex(EMITTER_HASH));
+    });
+
+    if (emitting.length === 0) return;
+
+    it('refuses every emitting circuit to a caller without the emitter secret', async () => {
+      const intruder = await deployGenerated(row.contract, STRANGER_EMITTER_SECRET);
+      for (const step of emitting) {
+        await expect(intruder.call(step.circuit), `${row.id}.${step.circuit}`).rejects.toThrow(/not the emitter/);
+      }
+    });
+
     it('emits exactly the payloads the matrix records', async () => {
-      const { Contract } = (await import(
-        `../contracts/managed/${row.contract}/contract/index.js`
-      )) as unknown as { Contract: new (witnesses: Record<string, never>) => never };
-      const instance = await deploy(new Contract({}) as never, {});
+      const instance = await deployGenerated(row.contract);
 
       for (const step of emitting) {
         const call = await instance.call(step.circuit);
@@ -218,48 +251,37 @@ for (const row of matrix.rows) {
 }
 
 describe('a literal payload is byte-identical to the parameterised template’s', () => {
-  it('SSTAR.publishMetadata equals NativeShieldedToken.publishMetadata', async () => {
-    const generated = (await import('../contracts/managed/SSTAR/contract/index.js')) as unknown as {
-      Contract: new (w: Record<string, never>) => never;
-    };
+  it('SSTAR’s literal name, symbol and decimals equal NativeShieldedToken.setMetadata’s', async () => {
     const template = (await import(
       '../contracts/managed/NativeShieldedToken/contract/index.js'
-    )) as unknown as { Contract: new (w: Record<string, unknown>) => never };
+    )) as unknown as { Contract: new (w: typeof emitterWitnesses) => never };
 
     const address = '11'.repeat(32);
-    const ownerSecretKey = new Uint8Array(32).fill(7);
-    const witnesses = {
-      wit_OwnableSK: ({ privateState }: { privateState: { secretKey: Uint8Array } }) => [
-        privateState,
-        privateState.secretKey,
-      ],
-    };
+    const literal = await deployGenerated('SSTAR', TEST_EMITTER_SECRET, address);
+    const sstar = matrix.rows.find((row) => row.id === 'SSTAR')!;
+    const literalEvents = [];
+    for (const step of sstar.steps.filter((s) => s.kind === 'emit')) {
+      literalEvents.push(...(await literal.call(step.circuit)).events);
+    }
 
-    const literal = await deploy(new generated.Contract({}) as never, {}, [], { address });
-    const literalEvents = (await literal.call('publishMetadata')).events;
-
-    const { persistentHash, CompactTypeBytes, CompactTypeVector } = await import(
-      '@midnight-ntwrk/compact-runtime'
-    );
-    const accountId = persistentHash(new CompactTypeVector(1, new CompactTypeBytes(32)), [ownerSecretKey]);
     const parameterised = await deploy(
-      new template.Contract(witnesses) as never,
-      { secretKey: ownerSecretKey },
-      [
-        { is_left: true, left: accountId, right: { bytes: new Uint8Array(32) } },
-        pad(32, 'umbra:sstar'),
-        'Shielded Star',
-        pad(32, 'Shielded Star'),
-        13n,
-        'SSTAR',
-        pad(32, 'SSTAR'),
-        5n,
-        6n,
-      ],
+      new template.Contract(emitterWitnesses) as never,
+      { emitterSecret: TEST_EMITTER_SECRET },
+      [EMITTER_HASH, pad(32, 'umbra:sstar'), 'Shielded Star', 'SSTAR', 6n],
       { address },
     );
-    const templateEvents = (await parameterised.call('publishMetadata')).events;
+    const field = (text: string | Uint8Array) => {
+      const out = new Uint8Array(ONE_PART_VALUE_SIZE);
+      out.set(typeof text === 'string' ? new TextEncoder().encode(text) : text);
+      return out;
+    };
+    const templateEvents = [
+      ...(await parameterised.call('setMetadata', pad(32, 'name'), BigInt(VAL_TYPE_STRING), 13n, field('Shielded Star'))).events,
+      ...(await parameterised.call('setMetadata', pad(32, 'symbol'), BigInt(VAL_TYPE_STRING), 5n, field('SSTAR'))).events,
+      ...(await parameterised.call('setMetadata', pad(32, 'decimals'), BigInt(VAL_TYPE_INTEGER), 16n, field(encodeInteger(6n)))).events,
+    ];
 
+    expect(literalEvents).toHaveLength(3);
     expect(literalEvents.map((event) => hex(event.payload))).toEqual(
       templateEvents.map((event) => hex(event.payload)),
     );

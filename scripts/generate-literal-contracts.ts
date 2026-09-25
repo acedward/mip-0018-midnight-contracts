@@ -1,6 +1,7 @@
 /**
  * Generate one Compact contract per row of `deployments/reference-set.json`, with every
- * TokenMetadata payload (MIP-0018 section 2, val-type byte included) written as a
+ * TokenMetadata payload (MIP-0018 on the UC-1 layout: 2-byte little-endian `val-len`,
+ * value from offset 68 — see contracts/TokenMetadata.compact) written as a
  * COMPILE-TIME LITERAL.
  *
  * Why (question Q13, decided 2026-09-17):
@@ -15,13 +16,17 @@
  *   time. The parameterised templates stay in `contracts/` as the reference implementation
  *   of the standard, with their measured cost documented in TOKEN-METADATA.md.
  *
+ * Who may emit (spec 00024 Q12): every generated contract takes ONE constructor argument,
+ * `emitterSecretHash` (`TM_emitterSecretHashOf(secret)`, computed off chain), and every
+ * emitting circuit calls `TM_assertEmitter()` before it emits — the module's emitter
+ * secret, answered by the `emitterSecret` witness from the deployer's private state. That
+ * check is the only runtime input of an emitting circuit (~4 100 rows, k=13).
+ *
  * What the generated contracts deliberately do NOT have:
- *   - `Ownable` (and therefore no witness, and therefore no private state at all): every
- *     update is a pre-written circuit, so there is no free-form setter to gate. This keeps
- *     the deploy script free of private-state plumbing.
+ *   - `Ownable` or any free-form setter: every update is a pre-written circuit.
  *   - `Opaque<"string">` metadata and the OpenZeppelin token modules: the generated
- *     contracts talk to the standard library directly, so they take no constructor
- *     arguments and every value in them is visible in the source.
+ *     contracts talk to the standard library directly, so every value in them is visible
+ *     in the source.
  *
  * Usage:
  *   npx tsx scripts/generate-literal-contracts.ts            # every row
@@ -39,8 +44,8 @@ const OUT_CONTRACTS = path.join(ROOT, 'contracts', 'generated');
 const OUT_MATRIX = path.join(ROOT, 'deployments', 'generated-matrix.json');
 
 const KEY_SIZE = 32;
-/** MIP section 2: the `value` field is 189 bytes wide. */
-const VALUE_SIZE = 189;
+/** UC-1: one event (a one-part package) holds 188 value bytes after the 68-byte header. */
+const VALUE_SIZE = 188;
 const DOMAIN_SIZE = 32;
 
 /**
@@ -536,6 +541,7 @@ const emitCircuit = (step: Extract<PlannedStep, { kind: 'emit' }>, guard: string
   }, every byte a compile-time literal.
  */
 export circuit ${step.circuit}(): [] {
+  TM_assertEmitter();
 ${guarded}${body}
 }`;
 };
@@ -546,11 +552,12 @@ const HEADER = (row: Row, planned: PlannedStep[]): string => `// SPDX-License-Id
 // deployments/reference-set.json row "${row.id}" (${row.name}).
 //
 // ${row.name} (${row.symbol}), ${row.decimals} decimals, kind byte ${row.kind}, template
-// ${row.template}. Every TokenMetadata payload below is a compile-time literal, so each
-// emitting circuit costs about eight rows per event (k=7) instead of the ~120 000 rows per
-// runtime event the parameterised templates in contracts/ pay — see TOKEN-METADATA.md
-// "Circuit cost" and question Q13. The bytes emitted are exactly the bytes MIP
-// section 2 fixes, val-type byte included.
+// ${row.template}. Every TokenMetadata payload below is a compile-time literal (MIP-0018 on
+// the UC-1 layout: 2-byte little-endian val-len, value from offset 68), so an emitting
+// circuit costs a few rows per event plus the emitter-secret check (~4 100 rows, k=13)
+// instead of the ~120 000 rows per runtime event the parameterised templates in contracts/
+// pay — see TOKEN-METADATA.md "Circuit cost". Only the emitter (the holder of the secret
+// whose hash the constructor stores) can call an emitting circuit.
 //
 // Circuits the deployment calls, in order:
 ${planned.map((s) => `//   ${s.circuit}${s.kind === 'emit' ? ` (${s.emits.length} event${s.emits.length === 1 ? '' : 's'})` : ''}`).join('\n')}
@@ -560,6 +567,15 @@ pragma language_version >= 0.26.0;
 import CompactStandardLibrary;
 import "../TokenMetadata" prefix TM_;
 `;
+
+/** The constructor every generated contract has: it stores the emitter-secret hash. */
+const CONSTRUCTOR = `/**
+ * @param {Bytes<32>} emitterSecretHash - \`TM_emitterSecretHashOf(secret)\`, computed off chain;
+ *   every emitting circuit proves knowledge of \`secret\` through the \`emitterSecret\` witness.
+ */
+constructor(emitterSecretHash: Bytes<32>) {
+  TM_initializeEmitter(emitterSecretHash);
+}`;
 
 function generateNativeSingle(row: Row, planned: PlannedStep[], shielded: boolean): string {
   const domain = domainFor(row);
@@ -594,11 +610,13 @@ export circuit mint(
 }`;
 
   const exports = shielded
-    ? 'export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey };'
-    : 'export { ContractAddress, Either, Maybe, UserAddress };';
+    ? 'export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey, TM_emitterSecretHash };'
+    : 'export { ContractAddress, Either, Maybe, UserAddress, TM_emitterSecretHash };';
 
   return `${HEADER(row, planned)}
 ${exports}
+
+${CONSTRUCTOR}
 
 ${hasPublish ? '/** True once `publishMetadata` has run; it may run only once. */\nexport ledger _published: Boolean;\n' : ''}/** How many mints this contract has made, for a cheap read-back after deployment. */
 export ledger _mints: Counter;
@@ -639,7 +657,9 @@ function generateDual(row: Row, planned: PlannedStep[]): string {
   const domainLiteral = byteLiteral(utf8(domain), DOMAIN_SIZE);
   const emits = planned.filter((s): s is Extract<PlannedStep, { kind: 'emit' }> => s.kind === 'emit');
   return `${HEADER(row, planned)}
-export { ContractAddress, Either, Maybe, ShieldedCoinInfo, UserAddress, ZswapCoinPublicKey };
+export { ContractAddress, Either, Maybe, ShieldedCoinInfo, UserAddress, ZswapCoinPublicKey, TM_emitterSecretHash };
+
+${CONSTRUCTOR}
 
 /** One guard per kind: the two halves of this token are published separately. */
 export ledger _publishedUnshielded: Boolean;
@@ -703,7 +723,9 @@ export circuit mintUnshielded(
 function generateCollection(row: Row, planned: PlannedStep[]): string {
   const emits = planned.filter((s): s is Extract<PlannedStep, { kind: 'emit' }> => s.kind === 'emit');
   return `${HEADER(row, planned)}
-export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey };
+export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey, TM_emitterSecretHash };
+
+${CONSTRUCTOR}
 
 /** How many pieces have been minted, for a cheap read-back after deployment. */
 export ledger _mintedPieces: Counter;
@@ -747,7 +769,9 @@ function generateLedger(row: Row, planned: PlannedStep[]): string {
   const emits = planned.filter((s): s is Extract<PlannedStep, { kind: 'emit' }> => s.kind === 'emit');
   const domainLiteral = byteLiteral(utf8(domainFor(row)), DOMAIN_SIZE);
   return `${HEADER(row, planned)}
-export { ContractAddress, Either, Maybe };
+export { ContractAddress, Either, Maybe, TM_emitterSecretHash };
+
+${CONSTRUCTOR}
 
 /**
  * Balances live in contract state, not in UTxOs — that is what kind bit 1 declares. The

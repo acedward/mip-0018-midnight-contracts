@@ -108,18 +108,6 @@
       }
     },
     {
-      "name": "publishMetadata",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-      ],
-      "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
-      }
-    },
-    {
       "name": "setMetadata",
       "pure": false,
       "proof": true,
@@ -142,14 +130,14 @@
           "name": "valLen",
           "type": {
             "type-name": "Uint",
-            "maxval": 255
+            "maxval": 65535
           }
         },
         {
           "name": "value",
           "type": {
             "type-name": "Bytes",
-            "length": 189
+            "length": 188
           }
         }
       ],
@@ -316,6 +304,15 @@
   ],
   "witnesses": [
     {
+      "name": "emitterSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
       "name": "wit_OwnableSK",
       "arguments": [
       ],
@@ -338,8 +335,18 @@
   ],
   "ledger": [
     {
-      "name": "_isInitialized",
+      "name": "emitterSecretHash",
       "index": 0,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "_isInitialized",
+      "index": 1,
       "exported": false,
       "storage": "Cell",
       "type": {
@@ -348,7 +355,7 @@
     },
     {
       "name": "_owner",
-      "index": 1,
+      "index": 2,
       "exported": false,
       "storage": "Cell",
       "type": {
@@ -389,7 +396,7 @@
     },
     {
       "name": "_isInitialized",
-      "index": 2,
+      "index": 3,
       "exported": false,
       "storage": "Cell",
       "type": {
@@ -398,7 +405,7 @@
     },
     {
       "name": "_balances",
-      "index": 3,
+      "index": 4,
       "exported": false,
       "storage": "Map",
       "key": {
@@ -443,7 +450,7 @@
     },
     {
       "name": "_allowances",
-      "index": 4,
+      "index": 5,
       "exported": false,
       "storage": "Map",
       "key": {
@@ -526,7 +533,7 @@
     },
     {
       "name": "_totalSupply",
-      "index": 5,
+      "index": 6,
       "exported": false,
       "storage": "Cell",
       "type": {
@@ -536,16 +543,6 @@
     },
     {
       "name": "_name",
-      "index": 6,
-      "exported": false,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Opaque",
-        "tsType": "string"
-      }
-    },
-    {
-      "name": "_symbol",
       "index": 7,
       "exported": false,
       "storage": "Cell",
@@ -555,8 +552,18 @@
       }
     },
     {
-      "name": "_decimals",
+      "name": "_symbol",
       "index": 8,
+      "exported": false,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      }
+    },
+    {
+      "name": "_decimals",
+      "index": 9,
       "exported": false,
       "storage": "Cell",
       "type": {
@@ -566,61 +573,12 @@
     },
     {
       "name": "_domain",
-      "index": 9,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "_nameBytes",
       "index": 10,
       "exported": true,
       "storage": "Cell",
       "type": {
         "type-name": "Bytes",
         "length": 32
-      }
-    },
-    {
-      "name": "_nameLen",
-      "index": 11,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Uint",
-        "maxval": 255
-      }
-    },
-    {
-      "name": "_symbolBytes",
-      "index": 12,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "_symbolLen",
-      "index": 13,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Uint",
-        "maxval": 255
-      }
-    },
-    {
-      "name": "_published",
-      "index": 14,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Boolean"
       }
     }
   ]

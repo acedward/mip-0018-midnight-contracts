@@ -160,8 +160,18 @@
   ],
   "ledger": [
     {
-      "name": "_mints",
+      "name": "emitterSecretHash",
       "index": 0,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "_mints",
+      "index": 1,
       "exported": true,
       "storage": "Counter"
     }
