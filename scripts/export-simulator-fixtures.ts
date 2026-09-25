@@ -1,41 +1,38 @@
 /**
- * Runs the whole reference set (deployments/reference-set.json) through the
- * Compact simulator and writes the bytes a token indexer must be able to parse.
+ * Runs the MIP-18 set — `deployments/generated-matrix.json`, the `18` variant of every
+ * row of `deployments/reference-set.json` (spec 00024 §6.A: LSUN18 … LLIAR18) — through
+ * the Compact simulator and writes the bytes a token indexer must be able to parse.
  *
  *   npm run export:fixtures:simulator
  *
- * This is the OFFLINE counterpart of the on-chain fixture exporter: no node, no
- * indexer, no proof server, no wallet — just the compiled contracts executed
- * in process. What comes out is real compiled-contract output rather than
- * hand-written bytes, so an indexer's golden test can be byte-exact long before
- * anything is deployed. What it cannot give is block heights, transaction
- * hashes or indexer event ids; those are filled with deterministic stand-ins
- * and clearly marked.
+ * This is the OFFLINE counterpart of a deployment: no node, no indexer, no proof server,
+ * no wallet — the COMPILED GENERATED CONTRACTS (the exact ones scripts/deploy-and-publish.ts
+ * deploys) executed in process, one matrix step per circuit call. What comes out is real
+ * compiled-contract output rather than hand-written bytes, so an indexer's golden test can
+ * be byte-exact long before anything is deployed. What it cannot give is block heights,
+ * transaction hashes, segments or indexer event ids; those are deterministic stand-ins and
+ * are marked as such (`*StandIn`).
  *
- * Contract addresses are derived from the row id, so the whole corpus —
- * including every colour — is reproducible.
+ * UC-1 (MIP-0018 on the Multi-Part Event rule): one circuit call is one intent, and every
+ * `mip-0018:token-metadata[v1]` event of it is a part of ONE package, merged in emission
+ * order with all 256 bytes of every part kept. `events.json` therefore carries both the
+ * events as a chain would deliver them (one 256-byte payload each) and the packages they
+ * form (`packages`: parts, event ids in order, the merged payload and its SHA-256).
+ *
+ * Contract addresses are derived from the row id, so the whole corpus — including every
+ * colour — is reproducible.
  */
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  CompactTypeBytes,
-  CompactTypeVector,
-  persistentCommit,
-  persistentHash,
-} from '@midnight-ntwrk/compact-runtime';
-import { Contract as NativeShielded } from '../contracts/managed/NativeShieldedToken/contract/index.js';
-import { Contract as NativeUnshielded } from '../contracts/managed/NativeUnshieldedToken/contract/index.js';
-import { Contract as NativeDual } from '../contracts/managed/NativeDualToken/contract/index.js';
-import { Contract as ShieldedCollection } from '../contracts/managed/ShieldedCollection/contract/index.js';
-import { Contract as LedgerTokenContract } from '../contracts/managed/LedgerToken/contract/index.js';
+import { CompactTypeBytes, CompactTypeVector, persistentCommit } from '@midnight-ntwrk/compact-runtime';
 import { Contract as MetadataProbe } from '../contracts/managed/MetadataProbe/contract/index.js';
 import {
-  DEFAULT_INTEGER_LEN,
   EVENT_NAME,
   LEGACY_EVENT_NAME,
   ONE_PART_VALUE_SIZE,
+  PAYLOAD_SIZE,
   PRE_MIP_EVENT_NAME,
   TEST_EMITTER_SECRET,
   VAL_TYPE_INTEGER,
@@ -48,8 +45,8 @@ import {
   deploy,
   emitterSecretHashOf,
   emitterWitnesses,
-  encodeInteger,
   hex,
+  miscParts,
   pad,
   validateTokenMetadataEvent,
 } from '../test/token-metadata.js';
@@ -60,33 +57,26 @@ const OUT = join(ROOT, 'fixtures', 'simulator');
 const BYTES32 = new CompactTypeBytes(32);
 const VECTOR2 = new CompactTypeVector(2, BYTES32);
 const DERIVE_TOKEN = pad(32, 'midnight:derive_token');
-const OWNER_SK = new Uint8Array(32).fill(7);
 
-type OwnerState = { secretKey: Uint8Array; emitterSecret: Uint8Array };
+/** The emitter secret of the corpus (a public test value) and the hash every constructor stores. */
 const EMITTER_HASH = emitterSecretHashOf(TEST_EMITTER_SECRET);
-const witnesses = {
-  ...emitterWitnesses,
-  wit_OwnableSK: ({ privateState }: { privateState: OwnerState }): [OwnerState, Uint8Array] => [
-    privateState,
-    privateState.secretKey,
-  ],
-  wit_FungibleTokenSK: ({ privateState }: { privateState: OwnerState }): [OwnerState, Uint8Array] => [
-    privateState,
-    privateState.secretKey,
-  ],
-};
-
-const accountId = (sk: Uint8Array) => persistentHash(new CompactTypeVector(1, BYTES32), [sk]);
-const ownerEither = {
-  is_left: true,
-  left: accountId(OWNER_SK),
-  right: { bytes: new Uint8Array(32) },
-};
 
 /** A deterministic 32-byte contract address, so every fixture is reproducible. */
 function addressFor(id: string): string {
-  return createHash('sha256').update(`umbra:00020:${id}`).digest('hex');
+  return createHash('sha256').update(`umbra:00024:${id}`).digest('hex');
 }
+
+/** A deterministic stand-in for the transaction that would carry step `step` of `row`. */
+function txStandInFor(row: string, step: number): string {
+  return createHash('sha256').update(`umbra:00024:sim:${row}:${step}`).digest('hex');
+}
+
+/**
+ * The stand-in physical segment of every simulated call. One circuit call is one intent,
+ * and the simulator has no intent map, so every package sits in segment 1 of its own
+ * stand-in transaction (a real chain assigns a random 16-bit segment id).
+ */
+const SEGMENT_STAND_IN = 1;
 
 function deriveColor(domainSep: Uint8Array, address: string): Uint8Array {
   return persistentCommit(VECTOR2, [domainSep, Uint8Array.from(Buffer.from(address, 'hex'))], DERIVE_TOKEN);
@@ -103,13 +93,6 @@ function value188(text: string): { bytes: Uint8Array; len: bigint } {
   return { bytes, len: BigInt(encoded.length) };
 }
 
-/** The 188-byte field holding `serialize<Uint<8*length>, length>(value)`, little-endian. */
-function value188Integer(value: number, length = DEFAULT_INTEGER_LEN): { bytes: Uint8Array; len: bigint } {
-  const bytes = new Uint8Array(ONE_PART_VALUE_SIZE);
-  bytes.set(encodeInteger(BigInt(value), length));
-  return { bytes, len: BigInt(length) };
-}
-
 const zswapRecipient = (label: string) => ({
   is_left: true,
   left: { bytes: pad(32, label) },
@@ -120,101 +103,105 @@ const userRecipient = (label: string) => ({
   left: { bytes: new Uint8Array(32) },
   right: { bytes: pad(32, label) },
 });
-const ledgerAccount = (label: string) =>
-  label === 'owner' ? ownerEither : { is_left: true, left: pad(32, label), right: { bytes: new Uint8Array(32) } };
+/** A generated ledger token keys its balances by 32 bytes: the label, padded. */
+const ledgerAccount = (label: string) => pad(32, label);
 
-interface Step {
-  op: string;
-  key?: string;
-  valType?: number;
-  value?: string;
-  to?: string;
-  amount?: string;
-  nonce?: string;
-  piece?: string;
-  pieceName?: string;
+// --------------------------------------------------------------------------
+// the plan: generated-matrix.json
+// --------------------------------------------------------------------------
+
+interface MatrixDeclaration {
+  piece: string | null;
+  domainSep: string;
+  kind: number;
+  key: string;
+  valType: number;
+  len: number;
+  parts: number;
+  value: string;
+  payload: string;
+  text: string | null;
 }
+type MatrixStep =
+  | { kind: 'emit'; circuit: string; sourceOps: string[]; parts: number; payload: string; events: MatrixDeclaration[] }
+  | {
+      kind: 'mint';
+      circuit: string;
+      mintKind: 'shielded' | 'unshielded';
+      piece: string | null;
+      domain: string;
+      domainSepHex: string;
+      to: string;
+      amount: string;
+      nonce: string | null;
+    }
+  | { kind: 'ledger'; circuit: string; op: string; to: string; amount: string };
 
-interface Row {
+interface MatrixRow {
   id: string;
+  contract: string;
+  template: string;
   name: string;
   symbol: string;
   decimals: number;
   kind: number;
-  template: string;
-  domain?: string;
-  pieces?: string[];
-  optional?: boolean;
-  expect?: Record<string, unknown>;
-  expectRows?: Record<string, unknown>[];
-  steps: Step[];
+  optional: boolean;
+  domain: string | null;
+  domainSepHex: string | null;
+  pieces: { piece: string; domain: string; domainSepHex: string }[] | null;
+  expect: Record<string, unknown>;
+  steps: MatrixStep[];
 }
 
-/**
- * The val-type a step carries. The reference set states it explicitly; these
- * fallbacks are MIP Appendix A's, kept in step with
- * scripts/generate-literal-contracts.ts.
- *
- * There is deliberately no `metadata/<n>` rule: MIP-0018 defines no multipart
- * representation (section 5.4) and a val-type 3 value must be ONE complete JSON
- * value (section 2.1), so a fragment is rejected rather than reassembled.
- */
-function valTypeOf(step: Step): number {
-  if (step.valType !== undefined) return step.valType;
-  switch (step.key ?? '') {
-    case 'decimals':
-      return VAL_TYPE_INTEGER;
-    case 'metadata':
-      return VAL_TYPE_JSON;
-    case 'tokenUri':
-      return VAL_TYPE_URI;
-    default:
-      return VAL_TYPE_STRING;
-  }
-}
-
-/**
- * The 188-byte one-part `value` field a metadata step carries, by its val-type.
- *
- * - Null (5): no bytes at all — `val-len` MUST be 0 (MIP section 2.1).
- * - integer (2): the number stated in decimal, serialized little-endian as
- *   `Uint<128>` — never the digits' UTF-8 bytes, which are a different number.
- * - everything else: the value's UTF-8 bytes.
- */
-function stepValue(step: Step): { bytes: Uint8Array; len: bigint } {
-  const valType = valTypeOf(step);
-  if (valType === VAL_TYPE_NULL) {
-    if (step.value !== undefined) {
-      throw new Error(`a val-type 5 (Null) step carries no value; got "${step.value}"`);
-    }
-    return { bytes: new Uint8Array(ONE_PART_VALUE_SIZE), len: 0n };
-  }
-  if (valType === VAL_TYPE_INTEGER) return value188Integer(Number(step.value!));
-  return value188(step.value!);
-}
-
-const referenceSet = JSON.parse(readFileSync(join(ROOT, 'deployments', 'reference-set.json'), 'utf8')) as {
-  rows: Row[];
+const matrix = JSON.parse(readFileSync(join(ROOT, 'deployments', 'generated-matrix.json'), 'utf8')) as {
+  rows: MatrixRow[];
 };
 
 // --------------------------------------------------------------------------
 
+/** One `Misc` event, as a chain delivers it: one 256-byte payload, one part of a package. */
 interface EventRecord {
-  row: string;
-  /** Index of the event across the whole corpus, in emission order — stands in for the indexer's event id. */
+  /** Emission order across the whole corpus — stands in for the indexer's event id. */
   eventId: number;
+  row: string;
   step: number;
-  op: string;
+  circuit: string;
   contractAddress: string;
+  txStandIn: string;
+  segmentStandIn: number;
+  /** The package this event is a part of, and its 1-based position in it. */
+  packageId: number;
+  part: number;
+  parts: number;
   eventName: string;
   payloadHex: string;
+}
+
+/** One package ([Y] §4) of `mip-0018:token-metadata[v1]`: ONE declaration (UC-1). */
+interface PackageRecord {
+  packageId: number;
+  row: string;
+  step: number;
+  circuit: string;
+  sourceOps: string[];
+  contractAddress: string;
+  txStandIn: string;
+  segmentStandIn: number;
+  /** k, and the event ids of the parts in emission order. */
+  parts: number;
+  eventIds: number[];
+  eventName: string;
+  /** The merged payload, 256·k bytes, every byte of every part kept. */
+  payloadHex: string;
+  payloadSha256: string;
   domainSepHex: string;
   domainSepText: string;
   kind: number;
   keyText: string;
   keyHex: string;
-  /** MIP section 2.1 — how a consumer reads `value`. */
+  /** MIP section 2.1 — how a consumer reads the value. */
   valType: number;
+  /** UC-1: the 2-byte little-endian val-len. */
   len: number;
   valueHex: string;
   valueText: string;
@@ -234,153 +221,103 @@ interface MintRecord {
 }
 
 const events: EventRecord[] = [];
+const packages: PackageRecord[] = [];
 const mints: MintRecord[] = [];
 const colorVectors: { row: string; contractAddress: string; domainSepHex: string; domainSepText: string; colorHex: string; source: string }[] = [];
 const expectedTokens: Record<string, unknown>[] = [];
 
 let eventId = 0;
 
-function newContract(template: string) {
-  switch (template) {
-    case 'NativeShieldedToken':
-      return new NativeShielded<OwnerState>(witnesses as never);
-    case 'NativeUnshieldedToken':
-      return new NativeUnshielded<OwnerState>(witnesses as never);
-    case 'NativeDualToken':
-      return new NativeDual<OwnerState>(witnesses as never);
-    case 'ShieldedCollection':
-      return new ShieldedCollection<OwnerState>(witnesses as never);
-    case 'LedgerToken':
-      return new LedgerTokenContract<OwnerState>(witnesses as never);
-    default:
-      throw new Error(`unknown template: ${template}`);
+const textOf = (bytes: Uint8Array): string => new TextDecoder().decode(bytes).replace(/\0+$/, '');
+
+/** The circuit arguments of one matrix step (a generated contract's own signatures). */
+function argsFor(row: MatrixRow, step: MatrixStep, index: number): unknown[] {
+  if (step.kind === 'emit') return [];
+  if (step.kind === 'ledger') {
+    return step.circuit === 'ledgerMint'
+      ? [ledgerAccount(step.to), BigInt(step.amount)]
+      : [ledgerAccount('owner'), ledgerAccount(step.to), BigInt(step.amount)];
   }
+  const nonce = step.nonce ? pad(32, step.nonce) : pad(32, `${row.id}:${index}`);
+  if (row.template === 'ShieldedCollection') return [pad(32, step.domain), zswapRecipient(step.to), nonce];
+  if (step.mintKind === 'shielded') return [zswapRecipient(step.to), BigInt(step.amount), nonce];
+  return [userRecipient(step.to), BigInt(step.amount)];
 }
 
-function constructorArgs(row: Row): unknown[] {
-  const domain = pad(32, row.domain ?? '');
-  const decimals = BigInt(row.decimals);
-
-  switch (row.template) {
-    case 'NativeShieldedToken':
-      return [EMITTER_HASH, domain, row.name, row.symbol, decimals];
-    case 'NativeUnshieldedToken':
-      return [EMITTER_HASH, domain, decimals, BigInt(row.kind)];
-    case 'NativeDualToken':
-      return [EMITTER_HASH, domain, decimals];
-    case 'ShieldedCollection':
-      return [EMITTER_HASH, row.name, row.symbol, decimals];
-    case 'LedgerToken':
-      return [EMITTER_HASH, ownerEither, domain, row.name, row.symbol, decimals];
-    default:
-      throw new Error(`unknown template: ${row.template}`);
-  }
-}
-
-/**
- * MIP Appendix A's three core fields as three one-declaration setter argument lists
- * (UC-1: one declaration per call): name, symbol, decimals as `Uint<128>`.
- */
-function standardFieldArgs(name: string, symbol: string, decimals: number): unknown[][] {
-  const n = value188(name);
-  const s = value188(symbol);
-  const d = value188Integer(decimals);
-  return [
-    [pad(32, 'name'), BigInt(VAL_TYPE_STRING), n.len, n.bytes],
-    [pad(32, 'symbol'), BigInt(VAL_TYPE_STRING), s.len, s.bytes],
-    [pad(32, 'decimals'), BigInt(VAL_TYPE_INTEGER), d.len, d.bytes],
-  ];
-}
-
-/**
- * Translates one matrix step into the template's circuit calls. The templates emit ONE
- * declaration per call (UC-1), so a `publish*` step is three setter calls.
- */
-function callFor(row: Row, step: Step): [string, unknown[]][] {
-  const pieceDomain = step.piece ? pad(32, `cnst:${step.piece}`) : undefined;
-  switch (step.op) {
-    case 'publishMetadata':
-      return standardFieldArgs(row.name, row.symbol, row.decimals).map((args) => ['setMetadata', args]);
-    case 'publishUnshielded':
-      return standardFieldArgs(row.name, row.symbol, row.decimals).map((args) => ['setMetadata', [0n, ...args]]);
-    case 'publishShielded':
-      return standardFieldArgs(row.name, row.symbol, row.decimals).map((args) => ['setMetadata', [1n, ...args]]);
-    case 'setMetadata': {
-      const { bytes, len } = stepValue(step);
-      const key = pad(32, step.key!);
-      const valType = BigInt(valTypeOf(step));
-      return row.template === 'NativeDualToken'
-        ? [['setMetadata', [BigInt(row.kind), key, valType, len, bytes]]]
-        : [['setMetadata', [key, valType, len, bytes]]];
-    }
-    case 'mint':
-      return row.template === 'NativeShieldedToken'
-        ? [['mint', [zswapRecipient(step.to!), BigInt(step.amount!), pad(32, step.nonce!)]]]
-        : [['mint', [userRecipient(step.to!), BigInt(step.amount!)]]];
-    case 'mintShielded':
-      return [['mintShielded', [zswapRecipient(step.to!), BigInt(step.amount!), pad(32, step.nonce!)]]];
-    case 'mintUnshielded':
-      return [['mintUnshielded', [userRecipient(step.to!), BigInt(step.amount!)]]];
-    case 'ledgerMint':
-      return [['mint', [ledgerAccount(step.to!), BigInt(step.amount!)]]];
-    case 'transfer':
-      return [['transfer', [ledgerAccount(step.to!), BigInt(step.amount!)]]];
-    case 'mintPiece':
-      return [['mintPiece', [pieceDomain, zswapRecipient(step.to!), pad(32, step.nonce!)]]];
-    case 'publishPiece':
-      return standardFieldArgs(step.pieceName!, row.symbol, row.decimals).map((args) => [
-        'setPieceTrait',
-        [pieceDomain, ...args],
-      ]);
-    case 'setPieceTrait': {
-      const { bytes, len } = stepValue(step);
-      return [['setPieceTrait', [pieceDomain, pad(32, step.key!), BigInt(valTypeOf(step)), len, bytes]]];
-    }
-    default:
-      throw new Error(`unknown step: ${step.op}`);
-  }
-}
-
-async function runRow(row: Row) {
+async function runRow(row: MatrixRow) {
   const address = addressFor(row.id);
-  const contract = await deploy<OwnerState>(
-    newContract(row.template) as never,
-    { secretKey: OWNER_SK, emitterSecret: TEST_EMITTER_SECRET },
-    constructorArgs(row),
-    { address },
-  );
+  const { Contract } = (await import(`../contracts/managed/${row.contract}/contract/index.js`)) as unknown as {
+    Contract: new (witnesses: typeof emitterWitnesses) => never;
+  };
+  const contract = await deploy(new Contract(emitterWitnesses) as never, { emitterSecret: TEST_EMITTER_SECRET }, [EMITTER_HASH], {
+    address,
+  });
 
   for (const [index, step] of row.steps.entries()) {
-   for (const [circuit, args] of callFor(row, step)) {
-    const call = await contract.call(circuit, ...args);
+    const call = await contract.call(step.circuit, ...argsFor(row, step, index));
+    const txStandIn = txStandInFor(row.id, index);
 
-    for (const event of call.events) {
-      // Everything the reference set emits must be a valid MIP event; a corpus
-      // that quietly contained a rejectable payload would be worse than useless.
-      const verdict = validateTokenMetadataEvent(event);
-      if (verdict.outcome !== 'accepted') {
-        throw new Error(
-          `${row.id} step ${index} (${step.op}) emitted a non-conforming event: ${JSON.stringify(verdict)}`,
-        );
+    if (step.kind === 'emit') {
+      // UC-1: one declaration per call, so exactly one package — equal to the matrix's bytes.
+      if (call.packages.length !== 1) {
+        throw new Error(`${row.id} step ${index} (${step.circuit}) formed ${call.packages.length} packages, not 1`);
       }
-      events.push({
+      const pkg = call.packages[0]!;
+      if (hex(pkg.payload) !== step.payload) {
+        throw new Error(`${row.id} step ${index} (${step.circuit}): package bytes differ from the matrix`);
+      }
+      // Everything the reference set emits must be a valid declaration; a corpus that
+      // quietly contained a rejectable package would be worse than useless.
+      const verdict = validateTokenMetadataEvent(pkg);
+      if (verdict.outcome !== 'accepted') {
+        throw new Error(`${row.id} step ${index} (${step.circuit}) emitted a non-conforming package: ${JSON.stringify(verdict)}`);
+      }
+      const packageId = packages.length;
+      const eventIds: number[] = [];
+      for (const [partIndex, raw] of (call.rawEvents as never[]).entries()) {
+        const { eventName, payload } = miscParts(raw);
+        eventIds.push(eventId);
+        events.push({
+          eventId: eventId++,
+          row: row.id,
+          step: index,
+          circuit: step.circuit,
+          contractAddress: address,
+          txStandIn,
+          segmentStandIn: SEGMENT_STAND_IN,
+          packageId,
+          part: partIndex + 1,
+          parts: pkg.parts,
+          eventName,
+          payloadHex: hex(payload),
+        });
+      }
+      packages.push({
+        packageId,
         row: row.id,
-        eventId: eventId++,
         step: index,
-        op: step.op,
+        circuit: step.circuit,
+        sourceOps: step.sourceOps,
         contractAddress: address,
-        eventName: event.eventName,
-        payloadHex: hex(event.payload),
-        domainSepHex: hex(event.domainSep),
-        domainSepText: new TextDecoder().decode(event.domainSep).replace(/\0+$/, ''),
-        kind: event.kind,
-        keyText: event.keyText,
-        keyHex: hex(event.key),
-        valType: event.valType,
-        len: event.len,
-        valueHex: hex(event.valueBytes),
-        valueText: event.valueText,
+        txStandIn,
+        segmentStandIn: SEGMENT_STAND_IN,
+        parts: pkg.parts,
+        eventIds,
+        eventName: pkg.eventName,
+        payloadHex: hex(pkg.payload),
+        payloadSha256: createHash('sha256').update(pkg.payload).digest('hex'),
+        domainSepHex: hex(pkg.domainSep),
+        domainSepText: textOf(pkg.domainSep),
+        kind: pkg.kind,
+        keyText: pkg.keyText,
+        keyHex: hex(pkg.key),
+        valType: pkg.valType,
+        len: pkg.len,
+        valueHex: hex(pkg.valueBytes),
+        valueText: pkg.valueText,
       });
+    } else if (call.rawEvents.length !== 0) {
+      throw new Error(`${row.id} step ${index} (${step.circuit}) is not an emit step but emitted events`);
     }
 
     for (const [which, kind] of [
@@ -394,7 +331,7 @@ async function runRow(row: Row) {
         mints.push({
           row: row.id,
           step: index,
-          op: step.op,
+          op: step.circuit,
           contractAddress: address,
           domainSepHex: String(domainSepHex),
           // MIP section 6.3: a mint effect is an observation of a NATIVE kind.
@@ -405,11 +342,10 @@ async function runRow(row: Row) {
         });
       }
     }
-   }
   }
 
   // Colour vectors: what the contract says, and what an observer derives.
-  const domains = row.pieces ? row.pieces.map((p) => `cnst:${p}`) : row.domain ? [row.domain] : [];
+  const domains = row.pieces ? row.pieces.map((p) => p.domain) : row.domain ? [row.domain] : [];
   for (const domainText of domains) {
     const domainSep = pad(32, domainText);
     const derived = deriveColor(domainSep, address);
@@ -461,6 +397,8 @@ async function runRow(row: Row) {
     symbol?: string;
     decimals?: number;
     tokenUri?: string;
+    /** FR-009: a `metadata` declaration that is one JSON object, parsed. */
+    metadata?: unknown;
   }
 
   const newRow = (domainSepHex: string, domainSepText: string, kindByte: number): ExpectedToken => {
@@ -489,20 +427,21 @@ async function runRow(row: Row) {
   const byIdentity = new Map<string, ExpectedToken>();
   const identityKey = (domainSepHex: string, kindByte: number) => `${domainSepHex}:${kindByte}`;
 
-  for (const event of events.filter((e) => e.row === row.id)) {
-    const key = identityKey(event.domainSepHex, event.kind);
-    const token =
-      byIdentity.get(key) ?? newRow(event.domainSepHex, event.domainSepText, event.kind);
+  // Last write wins in canonical order (MIP section 6.2): here every package is its own
+  // call, so emission order IS block, transaction and execution order; a multi-part
+  // package is positioned by its first part (derivation P1).
+  for (const pkg of packages.filter((p) => p.row === row.id)) {
+    const key = identityKey(pkg.domainSepHex, pkg.kind);
+    const token = byIdentity.get(key) ?? newRow(pkg.domainSepHex, pkg.domainSepText, pkg.kind);
     token.declared = true;
-    // Last write wins, in emission order (MIP section 6.2). Appendix A's core
-    // keys are projected into columns; everything else is a trait, kept verbatim
-    // with its val-type (MIP section 5.2).
-    if (event.valType === VAL_TYPE_NULL) {
+    // Appendix A's core keys are projected into columns; everything else is a trait,
+    // kept verbatim with its val-type (MIP section 5.2).
+    if (pkg.valType === VAL_TYPE_NULL) {
       // MIP sections 2.1 and 6.2: the key's CURRENT value becomes Null. The one
       // projected column that key fed is dropped; any other key is recorded
       // with val-type 5, so a reader can tell "cleared on chain" from "never
-      // said". History is not erased — the earlier events stay in events.json.
-      switch (event.keyText) {
+      // said". History is not erased — the earlier packages stay in events.json.
+      switch (pkg.keyText) {
         case 'name':
           delete token.name;
           break;
@@ -516,9 +455,11 @@ async function runRow(row: Row) {
           delete token.tokenUri;
           break;
         default:
-          (token.traits as Record<string, unknown>)[event.keyText] = {
+          if (pkg.keyText === 'metadata') delete token.metadata;
+          (token.traits as Record<string, unknown>)[pkg.keyText] = {
             valType: VAL_TYPE_NULL,
             valLen: 0,
+            parts: pkg.parts,
             valueHex: '',
             text: null,
           };
@@ -526,21 +467,26 @@ async function runRow(row: Row) {
       byIdentity.set(key, token);
       continue;
     }
-    if (event.keyText === 'decimals' && event.valType === VAL_TYPE_INTEGER) {
+    if (pkg.keyText === 'decimals' && pkg.valType === VAL_TYPE_INTEGER) {
       // MIP section 2.1: any width 1..31, decoded little-endian.
-      token.decimals = Number(decodeInteger(Uint8Array.from(Buffer.from(event.valueHex, 'hex'))));
-    } else if (event.keyText === 'name' && event.valType === VAL_TYPE_STRING) {
-      token.name = event.valueText;
-    } else if (event.keyText === 'symbol' && event.valType === VAL_TYPE_STRING) {
-      token.symbol = event.valueText;
-    } else if (event.keyText === 'tokenUri' && event.valType === VAL_TYPE_URI) {
-      token.tokenUri = event.valueText;
+      token.decimals = Number(decodeInteger(Uint8Array.from(Buffer.from(pkg.valueHex, 'hex'))));
+    } else if (pkg.keyText === 'name' && pkg.valType === VAL_TYPE_STRING) {
+      token.name = pkg.valueText;
+    } else if (pkg.keyText === 'symbol' && pkg.valType === VAL_TYPE_STRING) {
+      token.symbol = pkg.valueText;
+    } else if (pkg.keyText === 'tokenUri' && pkg.valType === VAL_TYPE_URI) {
+      token.tokenUri = pkg.valueText;
     } else {
-      (token.traits as Record<string, unknown>)[event.keyText] = {
-        valType: event.valType,
-        valLen: event.len,
-        valueHex: event.valueHex,
-        text: event.valType === VAL_TYPE_OPAQUE ? null : event.valueText,
+      if (pkg.keyText === 'metadata' && pkg.valType === VAL_TYPE_JSON) {
+        const parsed = JSON.parse(pkg.valueText) as unknown;
+        if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) token.metadata = parsed;
+      }
+      (token.traits as Record<string, unknown>)[pkg.keyText] = {
+        valType: pkg.valType,
+        valLen: pkg.len,
+        parts: pkg.parts,
+        valueHex: pkg.valueHex,
+        text: pkg.valType === VAL_TYPE_OPAQUE ? null : pkg.valueText,
       };
     }
     byIdentity.set(key, token);
@@ -575,7 +521,7 @@ async function runRow(row: Row) {
 
 /**
  * The events a conforming consumer must NOT simply apply. They cannot come from
- * the reference templates — those only ever emit valid ones — so the probe emits
+ * the generated contracts — those only ever emit valid ones — so the probe emits
  * them on demand, which keeps them real compiled-contract output like the rest
  * of the corpus.
  *
@@ -1020,23 +966,29 @@ async function runNegatives() {
   return out;
 }
 
+
 // --------------------------------------------------------------------------
 
 const only = process.argv.slice(2);
-const rows = only.length ? referenceSet.rows.filter((r) => only.includes(r.id)) : referenceSet.rows;
+const rows = only.length ? matrix.rows.filter((r) => only.includes(r.id)) : matrix.rows;
 
 for (const row of rows) {
   await runRow(row);
-  process.stdout.write(`${row.id}: ${events.filter((e) => e.row === row.id).length} events, ${mints.filter((m) => m.row === row.id).length} mints\n`);
+  const own = packages.filter((p) => p.row === row.id);
+  process.stdout.write(
+    `${row.id}: ${own.length} declarations in ${events.filter((e) => e.row === row.id).length} events` +
+      `${own.some((p) => p.parts > 1) ? ` (multi-part: ${own.filter((p) => p.parts > 1).map((p) => `${p.keyText} ${p.parts}`).join(', ')})` : ''}` +
+      `, ${mints.filter((m) => m.row === row.id).length} mints\n`,
+  );
 }
 const negatives = await runNegatives();
 
 mkdirSync(OUT, { recursive: true });
 const provenance = {
   standard: `MIP-0018 (MIP PR #325), mips/mip-0018-on-chain-token-metadata.md @ 37a3471, on the UC-1 layout (an amendment in development: 2-byte little-endian val-len at offset 66, value from offset 68, packages of 256·k bytes under the Multi-Part Event rule; see TOKEN-METADATA.md); event name "${EVENT_NAME}". A consumer IGNORES every other name, including this repository's pre-MIP "${LEGACY_EVENT_NAME}" and the #315 draft placeholder "${PRE_MIP_EVENT_NAME}" that the Stagenet reference set in fixtures/stagenet/ was deployed with (MIP sections 1 and 8).`,
-  source: 'Compact simulator (@midnight-ntwrk/compact-runtime 0.19.0), compactc 0.34.0',
+  source: 'the generated MIP-18 contracts (contracts/generated/*18.compact, compactc 0.34.0) executed in the Compact simulator (@midnight-ntwrk/compact-runtime 0.19.0); the negative corpus from contracts/probe/MetadataProbe.compact',
   producedBy: 'scripts/export-simulator-fixtures.ts',
-  note: 'Real compiled-contract output, executed in process. Contract addresses are sha256("umbra:00020:<row id>") so everything here is reproducible; there are no block heights, transaction hashes or indexer event ids, and `eventId` is simply the emission order across the whole corpus. Token rows are keyed by the MIP\'s identity `(contractAddress, domainSep, kind 0..3)`; `privacy` and `storage` are derived from the kind byte and `status` is one of observed | declared | described (MIP section 7.2). val-type 2 values are the little-endian Compact serialization of `Uint<8*val-len>` (MIP section 2.1), and `decimals` is emitted as `Uint<128>`, i.e. val-len 16. A val-type 5 (Null) event sets the key\'s CURRENT value to Null without erasing history: in expected-tokens.json the projected column it fed is absent and a non-projected key appears in `traits` with `valType: 5` — a consumer may instead delete the row.',
+  note: 'Real compiled-contract output, executed in process, one deployments/generated-matrix.json step per circuit call. Contract addresses are sha256("umbra:00024:<row id>"), so everything here is reproducible. There are no block heights, transaction hashes, segments or indexer event ids: `txStandIn` is sha256("umbra:00024:sim:<row>:<step>"), `segmentStandIn` is 1 (one call = one intent) and `eventId` is the emission order across the whole corpus. Every emit step is ONE package of one declaration (UC-1): `events` lists the Misc events as a chain would deliver them (256 bytes each, with `packageId` and `part`), `packages` the merged 256·k-byte payloads. Token rows are keyed by the MIP\'s identity `(contractAddress, domainSep, kind 0..3)`; `privacy` and `storage` are derived from the kind byte and `status` is one of observed | declared | described (MIP section 7.2). val-type 2 values are the little-endian Compact serialization of `Uint<8*val-len>` (MIP section 2.1), and `decimals` is emitted as `Uint<128>`, i.e. val-len 16. A val-type 5 (Null) package sets the key\'s CURRENT value to Null without erasing history: in expected-tokens.json the projected column it fed is absent and a non-projected key appears in `traits` with `valType: 5`. Last write wins in emission order, a package positioned by its first part (derivation P1).',
 };
 const write = (file: string, body: unknown) =>
   writeFileSync(join(OUT, file), `${JSON.stringify({ ...provenance, ...(body as object) }, null, 2)}\n`);
@@ -1052,8 +1004,18 @@ const identities = new Set(
 const addressDomainPairs = new Set(
   expectedTokens.map((t) => `${t.contractAddress}:${t.domainSepHex}`),
 );
+const partCounts = packages.reduce<Record<string, number>>((acc, p) => {
+  acc[String(p.parts)] = (acc[String(p.parts)] ?? 0) + 1;
+  return acc;
+}, {});
 
-write('events.json', { count: events.length, events });
+write('events.json', {
+  count: events.length,
+  packageCount: packages.length,
+  packagesByParts: partCounts,
+  events,
+  packages,
+});
 write('mints.json', { count: mints.length, mints });
 write('color-vectors.json', { count: colorVectors.length, vectors: colorVectors });
 write('expected-tokens.json', {
@@ -1074,7 +1036,9 @@ write('negative-payloads.json', {
 });
 
 process.stdout.write(
-  `\nwrote ${events.length} events, ${mints.length} mints, ${colorVectors.length} colour vectors, ` +
+  `\nwrote ${packages.length} packages in ${events.length} events (${Object.entries(partCounts)
+    .map(([parts, n]) => `${n} × ${parts} part${parts === '1' ? '' : 's'}`)
+    .join(', ')}), ${mints.length} mints, ${colorVectors.length} colour vectors, ` +
     `${expectedTokens.length} expected token rows over ${identities.size} identities ` +
     `(${Object.entries(statusCounts)
       .map(([status, n]) => `${n} ${status}`)

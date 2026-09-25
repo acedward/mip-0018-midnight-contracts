@@ -1,0 +1,178 @@
+{
+  "manifest-version": "1",
+  "compiler-version": "0.34.0",
+  "language-version": "0.26.0",
+  "runtime-version": "0.19.0",
+  "compiler": {
+    "type": "directory",
+    "contract-info.json": {
+      "type": "file",
+      "size": 4058,
+      "hash": "5ee0d2d5e5c2424695f36f4370e7ef99bad9b5456aa931fbe9b3f4a21e79fde1"
+    }
+  },
+  "contract": {
+    "type": "directory",
+    "index.d.ts": {
+      "type": "file",
+      "size": 4444,
+      "hash": "e5b4ebd589186179c35c4f720ed0695169af07ac1590d6df985e2c095a2aca49"
+    },
+    "index.js": {
+      "type": "file",
+      "size": 63953,
+      "hash": "928143ac8f887ed3261386689666cb34cea16e922a4f2fe08e3646e076160079"
+    },
+    "index.js.map": {
+      "type": "file",
+      "size": 2820,
+      "hash": "63da9eccfedec53a1d5b15f16d920333058c128370c9b148f16b7a507e8db542"
+    }
+  },
+  "zkir": {
+    "type": "directory",
+    "mint.bzkir": {
+      "type": "file",
+      "size": 869,
+      "hash": "42dd30cb0941d157f64eb204e894a51244f0351e3ded1d28ac33ae29f5a97a6b"
+    },
+    "mint.zkir": {
+      "type": "file",
+      "size": 13251,
+      "hash": "fb2b39cc9bb25d541bbb6fb308e3d99449e38a64e73d4cbd907ca86a7d9eccdb"
+    },
+    "mints.bzkir": {
+      "type": "file",
+      "size": 71,
+      "hash": "54256ea587373b9aaa828e2dd69b7a0a65e254eee38552fe7cc43829342cca04"
+    },
+    "mints.zkir": {
+      "type": "file",
+      "size": 953,
+      "hash": "ba6542ebf183e7a9eccff55f2267a05bc4b63b1ca2c7e32355d9c540831ac072"
+    },
+    "publishDecimals.bzkir": {
+      "type": "file",
+      "size": 265,
+      "hash": "bc607a2a1fb23a5bfc0b27f5f427fb9634f71441c0e83f5db27c13cf86977ddb"
+    },
+    "publishDecimals.zkir": {
+      "type": "file",
+      "size": 3385,
+      "hash": "9f15c5a141562cb047bd76b98281a6be809179b71fc5ff078f221c0cb44df59c"
+    },
+    "publishName.bzkir": {
+      "type": "file",
+      "size": 289,
+      "hash": "a1354c158d1d5e0adcfbc8744bd3b85d5808784b1a6bd3b9edae9db797ebeebb"
+    },
+    "publishName.zkir": {
+      "type": "file",
+      "size": 3467,
+      "hash": "15d49ffa7c0f04cc9463b042255f49140d3f1abfddeead930b28c1cb6b21ff79"
+    },
+    "publishRepository.bzkir": {
+      "type": "file",
+      "size": 372,
+      "hash": "509f07c3d4477c6f7e95f165d7f782dafaaa79f6bddcc627e7196b5d2a612a00"
+    },
+    "publishRepository.zkir": {
+      "type": "file",
+      "size": 3701,
+      "hash": "77ac8bcdd2a78aa3021cebfd180e761c8c2329a717d095751033f3b1a59f3291"
+    },
+    "publishSymbol.bzkir": {
+      "type": "file",
+      "size": 268,
+      "hash": "aa1332f373d164f8d5438bd619fc9e01a2821f18b9ab082aa011c987c3068820"
+    },
+    "publishSymbol.zkir": {
+      "type": "file",
+      "size": 3391,
+      "hash": "81b2bbebb2a97a113bf9a26165e579136a1e63397a7ad5f75620274197812a27"
+    },
+    "tokenColor.bzkir": {
+      "type": "file",
+      "size": 131,
+      "hash": "ad2c783c17c2b6089376bcca3bc31b55c5014e45bb0cad35626a6844036a1705"
+    },
+    "tokenColor.zkir": {
+      "type": "file",
+      "size": 1522,
+      "hash": "885f6258976bb86b0d6e7d1412b5e23e72d7a86c9c36547e61e8dde8008c9602"
+    }
+  },
+  "keys": {
+    "type": "directory",
+    "mint.prover": {
+      "type": "file",
+      "size": 2821291,
+      "hash": "9e8a2bb88d8dc3de4557c341a54b032d1721aa47d34f9ba2119def785fadb6d7"
+    },
+    "mint.verifier": {
+      "type": "file",
+      "size": 2119,
+      "hash": "6ba1150adde7c34c00cfff83de56968f862ac4f82107906a384dbb6b692730ff"
+    },
+    "mints.prover": {
+      "type": "file",
+      "size": 22435,
+      "hash": "79744f0b6e0fcac6fe668c194382ca3da8acc530adc635602d171420848f4c5f"
+    },
+    "mints.verifier": {
+      "type": "file",
+      "size": 1351,
+      "hash": "807711f46c0753b6cd8875cb2e1267b57190402a2da7c59dd42905b3e65a91ae"
+    },
+    "publishDecimals.prover": {
+      "type": "file",
+      "size": 2820256,
+      "hash": "abe4baa53436a5d22e3fb3fdc5106d4c75330fde8aeab7fecc8d9db7d2911718"
+    },
+    "publishDecimals.verifier": {
+      "type": "file",
+      "size": 2119,
+      "hash": "2c2b9fea9d77f4ceefd7db305550adcad41d4b77624d412a55df1b11d708a505"
+    },
+    "publishName.prover": {
+      "type": "file",
+      "size": 2820290,
+      "hash": "c9f923abd1003587f518af730876da3aac1eeb689c4a100faa3568a0dfe6c26c"
+    },
+    "publishName.verifier": {
+      "type": "file",
+      "size": 2119,
+      "hash": "9fe9e8aace4b3d892eb349af3248f854d151753b8ab179021e865505e5c1eb1d"
+    },
+    "publishRepository.prover": {
+      "type": "file",
+      "size": 2820369,
+      "hash": "8a11f96a0db6da768ce3017b646002ed23cfc80206e97561c3fe667d79519134"
+    },
+    "publishRepository.verifier": {
+      "type": "file",
+      "size": 2119,
+      "hash": "30e67fe694f0463aea862a3bb9b9e034b5f24621a3f3cd02f9c34189927643d9"
+    },
+    "publishSymbol.prover": {
+      "type": "file",
+      "size": 2820258,
+      "hash": "cd2cefc6a94e2635212284c8af2cbc2055abe3c6d12748039866d1a2313112bf"
+    },
+    "publishSymbol.verifier": {
+      "type": "file",
+      "size": 2119,
+      "hash": "098a54c315234c0008fe924a2eb885aebca1a22794fafaa595ddd25f5277cbdd"
+    },
+    "tokenColor.prover": {
+      "type": "file",
+      "size": 2814659,
+      "hash": "14078d2bb78bb3aaf30024be2bb0279d0f007a068724bae6aea3b802d5aaf885"
+    },
+    "tokenColor.verifier": {
+      "type": "file",
+      "size": 2119,
+      "hash": "f34970351854fefb2b84bcc2ade94b7e041657f04bdac6566f28304a0c33fa0b"
+    }
+  }
+}

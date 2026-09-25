@@ -25,9 +25,10 @@ OUT_DIR="$SRC_DIR/managed"
 # The contracts to build, in order. TokenMetadata.compact is a module: it has no
 # contract of its own and is compiled transitively by every importer.
 #
-# The generated/ half is the reference set as literal-payload contracts (see
-# scripts/generate-literal-contracts.ts); it is listed here so that `--check`
-# covers what actually gets deployed, not only the parameterised templates.
+# The generated/ half is the MIP-18 variant of the reference set as literal-payload
+# contracts (see scripts/generate-literal-contracts.ts; spec 00024 §6.A); it is
+# listed here so that `--check` covers what actually gets deployed, not only the
+# parameterised templates.
 CONTRACTS=(
   "probe/MetadataProbe"
   "NativeShieldedToken"
@@ -35,17 +36,17 @@ CONTRACTS=(
   "NativeDualToken"
   "ShieldedCollection"
   "LedgerToken"
-  "generated/LSUN"
-  "generated/LMOON"
-  "generated/SSTAR"
-  "generated/SNEB"
-  "generated/SGHOST"
-  "generated/UCOM"
-  "generated/UMET"
-  "generated/UPROM"
-  "generated/DAUR"
-  "generated/CNST"
-  "generated/LLIAR"
+  "generated/LSUN18"
+  "generated/LMOON18"
+  "generated/SSTAR18"
+  "generated/SNEB18"
+  "generated/SGHOST18"
+  "generated/UCOM18"
+  "generated/UMET18"
+  "generated/UPROM18"
+  "generated/DAUR18"
+  "generated/CNST18"
+  "generated/LLIAR18"
 )
 
 CHECK=0
