@@ -767,9 +767,7 @@ export circuit mints(): Uint<64> {
   return _mints.read() as Uint<64>;
 }
 
-${emits.map(emitCircuit).join('\n\n')}
-
-${mintCircuit}
+${[...emits.map(emitCircuit), mintCircuit].join('\n\n')}
 `;
 }
 

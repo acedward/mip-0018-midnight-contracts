@@ -119,7 +119,10 @@ describe('generated-matrix.json', () => {
   it('declares the contract’s own source as `repository` (val-type 4) for every token it describes', () => {
     for (const row of matrix.rows) {
       const repositories = row.steps.flatMap((step) => (step.events ?? []).filter((e) => e.key === 'repository'));
-      expect(repositories.length, row.id).toBeGreaterThan(0);
+      // `repository` where possible (spec 00024 Q19 (b)): a row that declares nothing at all
+      // (SGHOST18, minted only) has none; every other row has at least one.
+      const declares = row.steps.some((step) => (step.events ?? []).length > 0);
+      expect(repositories.length > 0, row.id).toBe(declares);
       for (const event of repositories) {
         expect(event.valType, row.id).toBe(4);
         expect(event.text, row.id).toBe(`${REPOSITORY_BLOB}/${row.contract}.compact`);
@@ -130,6 +133,12 @@ describe('generated-matrix.json', () => {
       const covered = new Set(repositories.map((e) => `${e.domainSep}:${e.kind}`));
       expect([...declared].sort(), row.id).toEqual([...covered].sort());
     }
+  });
+
+  it('keeps SGHOST18 minted only: no declaration at all, not even `repository` (Q19 (b))', () => {
+    const ghost = matrix.rows.find((row) => row.id === 'SGHOST18')!;
+    expect(ghost.steps.map((s) => `${s.kind}:${s.circuit}`)).toEqual(['mint:mint']);
+    expect(ghost.steps.flatMap((s) => s.events ?? [])).toEqual([]);
   });
 
   it('fits every contract in one local deploy: at most 20 impure circuits (spec 00024 Q20)', () => {
@@ -306,51 +315,53 @@ for (const row of matrix.rows) {
       expect(hex(ledger(instance.state as never).TM_emitterSecretHash)).toBe(hex(EMITTER_HASH));
     });
 
-    if (emitting.length === 0) return;
+    // A row with no declaration (SGHOST18, minted only — Q19 (b)) has no emitting circuit.
+    if (emitting.length > 0) {
 
-    it('refuses every emitting circuit to a caller without the emitter secret', async () => {
-      const intruder = await deployGenerated(row.contract, STRANGER_EMITTER_SECRET);
-      for (const step of emitting) {
-        await expect(intruder.call(step.circuit, ...(step.args ?? []).map(BigInt)), `${row.id}.${step.circuit}`).rejects.toThrow(
-          /not the emitter/,
-        );
-      }
-    });
+      it('refuses every emitting circuit to a caller without the emitter secret', async () => {
+        const intruder = await deployGenerated(row.contract, STRANGER_EMITTER_SECRET);
+        for (const step of emitting) {
+          await expect(intruder.call(step.circuit, ...(step.args ?? []).map(BigInt)), `${row.id}.${step.circuit}`).rejects.toThrow(
+            /not the emitter/,
+          );
+        }
+      });
 
-    it('emits exactly the payloads the matrix records', async () => {
-      const instance = await deployGenerated(row.contract);
+      it('emits exactly the payloads the matrix records', async () => {
+        const instance = await deployGenerated(row.contract);
 
-      for (const step of emitting) {
-        const call = await instance.call(step.circuit, ...(step.args ?? []).map(BigInt));
-        const expectedEvents = step.events ?? [];
-        const parts = expectedEvents.reduce((n, e) => n + e.parts, 0);
-        expect(call.events.length, `${row.id}.${step.circuit} event count`).toBe(parts);
-        // One declaration per call is ONE package (UC-1): compare the whole package bytes.
-        // A circuit that still folds several one-part declarations is compared per event.
-        const actuals = expectedEvents.length === 1 ? call.packages : call.events;
-        expect(actuals.length, `${row.id}.${step.circuit} declarations`).toBe(expectedEvents.length);
+        for (const step of emitting) {
+          const call = await instance.call(step.circuit, ...(step.args ?? []).map(BigInt));
+          const expectedEvents = step.events ?? [];
+          const parts = expectedEvents.reduce((n, e) => n + e.parts, 0);
+          expect(call.events.length, `${row.id}.${step.circuit} event count`).toBe(parts);
+          // One declaration per call is ONE package (UC-1): compare the whole package bytes.
+          // A circuit that still folds several one-part declarations is compared per event.
+          const actuals = expectedEvents.length === 1 ? call.packages : call.events;
+          expect(actuals.length, `${row.id}.${step.circuit} declarations`).toBe(expectedEvents.length);
 
-        for (const [index, expected] of expectedEvents.entries()) {
-          const actual = actuals[index]!;
-          const where = `${row.id}.${step.circuit}[${index}] (${expected.key})`;
-          expect(actual.eventName, where).toBe(EVENT_NAME);
-          expect(actual.parts, where).toBe(expected.parts);
-          expect(actual.payload.length, where).toBe(PAYLOAD_SIZE * expected.parts);
-          expect(hex(actual.payload), where).toBe(expected.payload);
-          expect(hex(actual.domainSep), where).toBe(expected.domainSep);
-          expect(actual.kind, where).toBe(expected.kind);
-          expect(actual.keyText, where).toBe(expected.key);
-          expect(actual.valType, where).toBe(expected.valType);
-          expect(actual.len, where).toBe(expected.len);
-          expect(hex(actual.value), where).toBe(expected.value);
-          // Every event the reference set emits must survive transport validation.
-          expect(validateTokenMetadataEvent(actual), where).toEqual({ outcome: 'accepted' });
-          if (expected.text !== null && expected.key !== 'decimals') {
-            expect(actual.valueText, where).toBe(expected.text);
+          for (const [index, expected] of expectedEvents.entries()) {
+            const actual = actuals[index]!;
+            const where = `${row.id}.${step.circuit}[${index}] (${expected.key})`;
+            expect(actual.eventName, where).toBe(EVENT_NAME);
+            expect(actual.parts, where).toBe(expected.parts);
+            expect(actual.payload.length, where).toBe(PAYLOAD_SIZE * expected.parts);
+            expect(hex(actual.payload), where).toBe(expected.payload);
+            expect(hex(actual.domainSep), where).toBe(expected.domainSep);
+            expect(actual.kind, where).toBe(expected.kind);
+            expect(actual.keyText, where).toBe(expected.key);
+            expect(actual.valType, where).toBe(expected.valType);
+            expect(actual.len, where).toBe(expected.len);
+            expect(hex(actual.value), where).toBe(expected.value);
+            // Every event the reference set emits must survive transport validation.
+            expect(validateTokenMetadataEvent(actual), where).toEqual({ outcome: 'accepted' });
+            if (expected.text !== null && expected.key !== 'decimals') {
+              expect(actual.valueText, where).toBe(expected.text);
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     it('declares the kind byte and the domain separator the matrix says', async () => {
       const { pureCircuits } = (await import(

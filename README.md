@@ -240,8 +240,9 @@ GraphQL gets the full 256-byte payload already re-padded.
 [`deployments/reference-set.json`](./deployments/reference-set.json) is the
 reference deployment as data: eleven rows across all four families, including
 the cases a token table has to render and nobody remembers to build — a token
-minted before it is described, one described but never minted, and one that
-describes its ledger side and then mints natively anyway. Every metadata step
+minted before it is described, one described but never minted, one minted and
+never described, and one that describes its ledger side and then mints natively
+anyway. Every metadata step
 carries the `val-type` of MIP section 2.1, and the generator refuses to write a
 payload a conforming consumer would have to reject: a reserved val-type, a
 non-UTF-8 string, an integer outside 1..31 bytes, a JSON value that is not one
@@ -253,10 +254,12 @@ variant of every row (spec 00024 §6.A): ids, symbols, names and domain separato
 the suffix, every declaration is a circuit of its own (one declaration per intent), a
 value longer than 188 bytes is one circuit emitting all of its parts (a collection has one
 circuit per piece whose public selector `which` picks one literal declaration per call, so
-its deploy fits one block — TOKEN-METADATA.md, "Circuit cost"), and every token a
-contract describes also declares `repository` (val-type 4) — the URL of the contract's
-own file on `main`, `https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/<ID>.compact`.
-The only constructor argument is the emitter-secret hash.
+its deploy fits one block — TOKEN-METADATA.md, "Circuit cost"), and, where possible,
+every token a contract describes also declares `repository` (val-type 4) — the URL of the
+contract's own file on `main`, `https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/<ID>.compact`.
+`SGHOST18`, the minted-only row, declares nothing at all (not even `repository`: a token
+need not be on GitHub, spec 00024 Q19) and stays `observed`. The only constructor argument
+is the emitter-secret hash.
 
 | Contract | Name | Symbol | Template | Kind | Declarations | Mint/ledger calls | Long values |
 |---|---|---|---|---|---|---|---|
@@ -264,7 +267,7 @@ The only constructor argument is the emitter-secret hash.
 | `LMOON18` | Ledger Moon · MIP-18 | `LMOON18` | LedgerToken | 2 | 8 | 1 | `description` 377 B / 2 parts, after its Null |
 | `SSTAR18` | Shielded Star · MIP-18 | `SSTAR18` | NativeShieldedToken | 1 | 4 | 1 | — |
 | `SNEB18` | Shielded Nebula · MIP-18 | `SNEB18` | NativeShieldedToken | 1 | 6 | 2 | `metadata` 677 B / 3 parts |
-| `SGHOST18` | Shielded Ghost · MIP-18 | `SGHOST18` | NativeShieldedToken | 1 | 1 (`repository`, after its mint) | 1 | — |
+| `SGHOST18` | Shielded Ghost · MIP-18 | `SGHOST18` | NativeShieldedToken | 1 | 0 (minted only, stays `observed`) | 1 | — |
 | `UCOM18` | Unshielded Comet · MIP-18 | `UCOM18` | NativeUnshieldedToken | 0 | 4 | 1 | — |
 | `UMET18` | Unshielded Meteor · MIP-18 | `UMET18` | NativeUnshieldedToken | 0 | 4 (after three mints) | 3 | — |
 | `UPROM18` | Unshielded Promise · MIP-18 | `UPROM18` | NativeUnshieldedToken | 0 | 4 | 0 | — |
@@ -272,7 +275,7 @@ The only constructor argument is the emitter-secret hash.
 | `CNST18` | Constellations · MIP-18 | `CNST18` | ShieldedCollection | 1 (5 pieces) | 36, through 5 per-piece selector circuits | 5 | Orion `metadata` 279 B / 2 parts |
 | `LLIAR18` | Ledger Liar · MIP-18 | `LLIAR18` | NativeUnshieldedToken | 2 declared, 0 minted | 4 | 1 | — |
 
-Eleven deployments and 102 circuit calls (83 declarations in 87 events, 19 mint or
+Eleven deployments and 101 circuit calls (82 declarations in 86 events, 19 mint or
 ledger calls). `deployments/generated-matrix.json` is the step-by-step plan: per emit
 step its circuit, `parts` and the exact package bytes (`payload`).
 
@@ -285,10 +288,10 @@ matrix step per call — and writes `fixtures/simulator/`:
 
 | file | what is in it |
 |---|---|
-| `events.json` | the 87 `mip-0018:token-metadata[v1]` Misc events as a chain delivers them (256 bytes each, with their package and part), and the 83 packages they form (80 one-part, 2 two-part, 1 three-part): event ids in order, the merged payload, its SHA-256 |
+| `events.json` | the 86 `mip-0018:token-metadata[v1]` Misc events as a chain delivers them (256 bytes each, with their package and part), and the 82 packages they form (79 one-part, 2 two-part, 1 three-part): event ids in order, the merged payload, its SHA-256 |
 | `mints.json` | every mint effect a scanner would read out of a transcript (16) |
 | `color-vectors.json` | `(domainSep, address) → colour` (15), checked against each contract's own `tokenColor()` |
-| `expected-tokens.json` | the rows an indexer should end up with — 17 rows over 17 identities: 4 declared, 12 described, 1 observed |
+| `expected-tokens.json` | the rows an indexer should end up with — 17 rows over 17 identities: 4 declared, 11 described, 2 observed (SGHOST18, and LLIAR18's kind-0 row) |
 | `negative-payloads.json` | 40 packages that are not simply applied: 17 a consumer must **reject** (one per rule, the UC-1 package bound in 1, 2 and 3 parts), 2 it must **ignore** (the pre-MIP `TokenMetadata` name and the `mip-xxxx` placeholder), 21 it must **apply** — among them six well-known keys whose Appendix A projection fails, non-zero bytes after the value (1 and 2 parts), two declarations merged by one intent (the first applies), a UTF-8 character across a part boundary |
 | `SOURCE.md` | generated: toolchain, stand-ins, SHA-256 of every input and output |
 

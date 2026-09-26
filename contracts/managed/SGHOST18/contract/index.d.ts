@@ -14,13 +14,11 @@ export type ShieldedCoinInfo = { nonce: Uint8Array;
 export type ZswapCoinPublicKey = { bytes: Uint8Array };
 
 export type Witnesses<PS> = {
-  emitterSecret(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
 }
 
 export type ImpureCircuits<PS> = {
   tokenColor(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
   mints(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
-  publishRepository(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, []>>;
   mint(context: __compactRuntime.CircuitContext<PS>,
        recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
        amount_0: bigint,
@@ -30,7 +28,6 @@ export type ImpureCircuits<PS> = {
 export type ProvableCircuits<PS> = {
   tokenColor(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
   mints(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
-  publishRepository(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, []>>;
   mint(context: __compactRuntime.CircuitContext<PS>,
        recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
        amount_0: bigint,
@@ -49,7 +46,6 @@ export type Circuits<PS> = {
   kind(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
   decimals(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
   mints(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, bigint>>;
-  publishRepository(context: __compactRuntime.CircuitContext<PS>): Promise<__compactRuntime.CircuitResults<PS, []>>;
   mint(context: __compactRuntime.CircuitContext<PS>,
        recipient_0: Either<ZswapCoinPublicKey, ContractAddress>,
        amount_0: bigint,

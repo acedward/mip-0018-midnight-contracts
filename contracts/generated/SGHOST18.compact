@@ -15,7 +15,6 @@
 //
 // Circuits the deployment calls, in order:
 //   mint
-//   publishRepository (1 event)
 
 pragma language_version >= 0.26.0;
 
@@ -56,15 +55,6 @@ export circuit decimals(): Uint<8> {
 
 export circuit mints(): Uint<64> {
   return _mints.read() as Uint<64>;
-}
-
-/**
- * @description publishRepository — one declaration, one TokenMetadata event, every byte a compile-time literal. Emitter only.
- */
-export circuit publishRepository(): [] {
-  TM_assertEmitter();
-  // repository = "https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/SGHOST18.compact" (val-type 4 URI, val-len 102)
-  TM_emitTokenMetadata(pad(32, "umbra:sghost18"), 1, pad(32, "repository"), 4, 102, pad(188, "https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/SGHOST18.compact"));
 }
 
 /**

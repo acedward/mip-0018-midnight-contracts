@@ -8,8 +8,8 @@
   "addressDomainPairs": 15,
   "statusCounts": {
     "declared": 4,
-    "described": 12,
-    "observed": 1
+    "described": 11,
+    "observed": 2
   },
   "tokens": [
     {
@@ -161,18 +161,10 @@
       "privacy": "shielded",
       "storage": "native",
       "colorHex": "2e00e507662dcafa40eb5cd4fb8c4da953c21f0459f5d0c2a8c541a61b699dbd",
-      "traits": {
-        "repository": {
-          "valType": 4,
-          "valLen": 102,
-          "parts": 1,
-          "valueHex": "68747470733a2f2f6769746875622e636f6d2f61636564776172642f6d69702d303031382d6d69646e696768742d636f6e7472616374732f626c6f622f6d61696e2f636f6e7472616374732f67656e6572617465642f5347484f535431382e636f6d70616374",
-          "text": "https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/SGHOST18.compact"
-        }
-      },
+      "traits": {},
       "mintCount": 1,
       "totalMinted": "13",
-      "status": "described"
+      "status": "observed"
     },
     {
       "row": "UCOM18",

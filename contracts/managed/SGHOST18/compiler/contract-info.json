@@ -59,18 +59,6 @@
       }
     },
     {
-      "name": "publishRepository",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-      ],
-      "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
-      }
-    },
-    {
       "name": "mint",
       "pure": false,
       "proof": true,
@@ -167,15 +155,6 @@
     }
   ],
   "witnesses": [
-    {
-      "name": "emitterSecret",
-      "arguments": [
-      ],
-      "result type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    }
   ],
   "contracts": [
   ],

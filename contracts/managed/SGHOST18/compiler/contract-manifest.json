@@ -7,26 +7,26 @@
     "type": "directory",
     "contract-info.json": {
       "type": "file",
-      "size": 4128,
-      "hash": "640a23f8b78c626931e347b04b3114796593ccb52eb46f1927dcdb4996a030cf"
+      "size": 3763,
+      "hash": "0e6266b2cd2639bdca390f4e90617ada24f515d579172e86ad0e98bde935a944"
     }
   },
   "contract": {
     "type": "directory",
     "index.d.ts": {
       "type": "file",
-      "size": 3743,
-      "hash": "da7ec63a25557575f39808db60d805358c25b29e59e439345ce4a202dd55822f"
+      "size": 3303,
+      "hash": "92efbbd391ff96927056bcb57db8bb0bc6265c5de3b56a8fa6c19ca6c8dd582f"
     },
     "index.js": {
       "type": "file",
-      "size": 54358,
-      "hash": "30dbb68419a94de802629af773969f1141ef53881e3ac98f100d9effb9669f2d"
+      "size": 37063,
+      "hash": "1efe0343b5763ae5e3c3af385162fb712e9ccda307f4261c3b2821ae107975ef"
     },
     "index.js.map": {
       "type": "file",
-      "size": 2721,
-      "hash": "1887c602a730b3b539becafd7faf33fd636a8d142ba1ed17f7249c4c6b5e6c3b"
+      "size": 2008,
+      "hash": "326a471ca618148b966f50c445ea66fd782f3d000d7d95b3e25eadb2afe548a6"
     }
   },
   "zkir": {
@@ -50,16 +50,6 @@
       "type": "file",
       "size": 953,
       "hash": "ba6542ebf183e7a9eccff55f2267a05bc4b63b1ca2c7e32355d9c540831ac072"
-    },
-    "publishRepository.bzkir": {
-      "type": "file",
-      "size": 376,
-      "hash": "9f06e4c9019a7b870db04359ffc70a839c30517433a44e6672674d1011d3a929"
-    },
-    "publishRepository.zkir": {
-      "type": "file",
-      "size": 3709,
-      "hash": "668d1aa7c11f5f0aa4c392bb83233efed6f4c2ea5b2a843aa9da8367bb56649a"
     },
     "tokenColor.bzkir": {
       "type": "file",
@@ -93,16 +83,6 @@
       "type": "file",
       "size": 1351,
       "hash": "807711f46c0753b6cd8875cb2e1267b57190402a2da7c59dd42905b3e65a91ae"
-    },
-    "publishRepository.prover": {
-      "type": "file",
-      "size": 2820373,
-      "hash": "1905c83349aacbe825e67ed2be828de685333cfb60f48e4d21ffc6ad40dbb578"
-    },
-    "publishRepository.verifier": {
-      "type": "file",
-      "size": 2119,
-      "hash": "2bd66f420dfa29c2603f21424ed0af1d0e8bb5bef26d6de81778e16bbe663406"
     },
     "tokenColor.prover": {
       "type": "file",

@@ -16,8 +16,8 @@ Regenerate: `npm run export:fixtures:simulator` — deterministic: two runs from
 
 | File | What |
 | --- | --- |
-| `events.json` | `events`: all 87 `mip-0018:token-metadata[v1]` Misc events as a chain delivers them (256 bytes each; `eventId` = emission order, `packageId`, `part` 1..k, `txStandIn`, `segmentStandIn`). `packages`: the 83 packages they form — 80 × 1 part, 2 × 2 parts, 1 × 3 parts — each ONE declaration: `eventIds` in order, the merged `payloadHex` (256·k bytes, every byte kept), `payloadSha256` and the decoded fields |
-| `expected-tokens.json` | the 17 token rows over 17 identities `(contractAddress, domainSep, kind)` a consumer folds out of the packages (last write wins in emission order, a package positioned by its first part — derivation P1): 4 declared, 12 described, 1 observed; traits carry `parts`, and a JSON-object `metadata` is also projected |
+| `events.json` | `events`: all 86 `mip-0018:token-metadata[v1]` Misc events as a chain delivers them (256 bytes each; `eventId` = emission order, `packageId`, `part` 1..k, `txStandIn`, `segmentStandIn`). `packages`: the 82 packages they form — 79 × 1 part, 2 × 2 parts, 1 × 3 parts — each ONE declaration: `eventIds` in order, the merged `payloadHex` (256·k bytes, every byte kept), `payloadSha256` and the decoded fields |
+| `expected-tokens.json` | the 17 token rows over 17 identities `(contractAddress, domainSep, kind)` a consumer folds out of the packages (last write wins in emission order, a package positioned by its first part — derivation P1): 4 declared, 11 described, 2 observed; traits carry `parts`, and a JSON-object `metadata` is also projected |
 | `mints.json` | 16 mint effects a scanner reads out of the transcripts |
 | `color-vectors.json` | 15 `(domainSep, address) → colour` vectors, each checked against the contract's own `tokenColor()` |
 | `negative-payloads.json` | 40 packages that are not simply applied (2 ignored, 17 rejected, 21 applied), one per rule and on both sides where a rule has two — including the UC-1 cases: a declared length beyond the package (1, 2 and 3 parts), a package filled exactly, a UTF-8 character across a part boundary, a JSON value cut by `val-len`, non-zero bytes after the value (1 and 2 parts) and two declarations merged by one intent (spec 00024 Q11). Every entry has `parts` and its `partPayloadsHex` |
@@ -28,9 +28,9 @@ Stand-ins (the simulator has no chain): contract addresses are `sha256("umbra:00
 
 | File | SHA-256 |
 | --- | --- |
-| `deployments/reference-set.json` | `ea6a8f9e7fba7003e403f367d06b7bfdde84aa1e0ac0e8c60d989c3d440e7e12` |
-| `deployments/generated-matrix.json` | `6df31292a2c412b24c3acef6936a825ec2e3edd31c0d2531fef2e186ce32fb8f` |
-| `scripts/generate-literal-contracts.ts` | `de5fe4af396be57e47e823bd5e3b0315d0151d0a23b89a785d5452279784208d` |
+| `deployments/reference-set.json` | `6b37b56af510d3483899e04690762b12dc0a059853ed07fdd4036e5c2bf6a40b` |
+| `deployments/generated-matrix.json` | `a36da7c201486642077e4b3e64aef3455aad7551ee3fb9c5625cce8f9aa6c3e3` |
+| `scripts/generate-literal-contracts.ts` | `50f7302ed90cd086d9ca62e1d4e1a3a13d47263267f83c1ba5d498e18139a4e0` |
 | `scripts/export-simulator-fixtures.ts` | `781b6977a19eb03c61e8cf1ecb18b1dba929289373b04176176e541cea038677` |
 | `test/token-metadata.ts` | `fdd48f11a00ce33f75dd12b94951bcfade183fc79b93645ff8071785c9963a2e` |
 | `contracts/TokenMetadata.compact` | `7d16b4da4209f48815da07950513bbd58b2f14d795db8fe54f7fd2d5b7fb5847` |
@@ -39,7 +39,7 @@ Stand-ins (the simulator has no chain): contract addresses are `sha256("umbra:00
 | `contracts/generated/LMOON18.compact` | `33564cff81bfa4f28891191ca91b66e7cfaf6648646d660c816de88a336dda5f` |
 | `contracts/generated/SSTAR18.compact` | `9289ff791ea36c459439fc80e14ab0b20ed0131f8ee452af7ad09190e3baed0a` |
 | `contracts/generated/SNEB18.compact` | `eadd9eea598fdc90d60a90b55f82a0e8583412bfa1df806d0d44283538a2d884` |
-| `contracts/generated/SGHOST18.compact` | `c8606684a12e0d095c212a4b3bb3d517c38e726dd328e3b957fad0447faf4ca9` |
+| `contracts/generated/SGHOST18.compact` | `4c600cc06c5c4aa2a135dbe7a391ba7d058fe1d529d1a64dee4ea09b74352bfd` |
 | `contracts/generated/UCOM18.compact` | `6136bd7147962aa7ca1a6a12485f3a30a2fcf5ee57b93996def71c773774975c` |
 | `contracts/generated/UMET18.compact` | `8b0c318772a30a5e4eac421507bd0812f15dcdeb8e4c86952ca05284c3f1992e` |
 | `contracts/generated/UPROM18.compact` | `a7c3c6fe2c12a1edf34745c80f3e9322603b6f1906dd3bae392f1bac576cbb6e` |
@@ -56,7 +56,7 @@ Compiled artefacts (`contracts/managed/<name>/`, every committed file; keys are 
 | `LMOON18` | `27d3967a90b7a7ce76cb1442f9eb190adac231a4e69b8052d4a7bc2a36dee946` |
 | `SSTAR18` | `f63bc168c51d30ff1407b0badf5cbbed2a22eaeffcacc00c7298161880f8eadd` |
 | `SNEB18` | `2976343d83a3a88e380c2dadef45254e33cf8634bbaad6a5a1d1839148a1a664` |
-| `SGHOST18` | `8fe7bdf7feb6d1733bba56d3a24aa76655031aa7aa1f33a965a9944d8c8d6576` |
+| `SGHOST18` | `e72097444242c2b74a27724db8c363193722d165ff76e195ffc6f5f8e2c85d1c` |
 | `UCOM18` | `3a57f623e08073bb8c6f1b4434700a766a39fc6c031133e0918d49d9f17273ac` |
 | `UMET18` | `9ff4e8e18c5d9c54e9604755bd7e9c9a8dc1bbe5e2ddf2020be8ea54dc55fe10` |
 | `UPROM18` | `027729c709609127f837eb6399634d3c421f175c8bf3d8264a41b4b82ab29eb2` |
@@ -68,8 +68,8 @@ Compiled artefacts (`contracts/managed/<name>/`, every committed file; keys are 
 
 | File | SHA-256 |
 | --- | --- |
-| `events.json` | `951c88f97e92034ad592c11191cce259d78516512f1e1b9ee35225584522716c` |
+| `events.json` | `88e01e9b24a658a0d946e3d156f88634dcd224556c4e4c299072153e482649df` |
 | `mints.json` | `6a0ebbaa47f9fa48fe552533b6a5f1acbae111d5d4f007711858e23cf263edb2` |
 | `color-vectors.json` | `9d5af0eed68dacb333d6c6e03aa316ac37eef5fa7ee5f88dc4445398b9293216` |
-| `expected-tokens.json` | `0f48000f8d5be601cd81534c1a8fce3c7c03225f7299f47fffe530f8ecb5c9c6` |
+| `expected-tokens.json` | `668ee3301f09cf12556c0af2b47e10ebe92c46541837e118f63227c2b7434f89` |
 | `negative-payloads.json` | `8b896e73a409bf1a790b4d54e4f9109620551dc8f11d3c2c16596171773e7751` |

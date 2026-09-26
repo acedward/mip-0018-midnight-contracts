@@ -182,12 +182,15 @@ must emit arbitrary, deliberately invalid payloads and is never deployed.
 
 ## The `repository` key
 
-Every generated contract declares, for every token it describes, the key
+Where possible, a generated contract declares, for every token it describes, the key
 `repository` with val-type 4 (absolute URI): the URL of its own source file on this
 repository's `main`, e.g.
 `https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/LSUN18.compact`.
 It is an issuer-defined key (the MIP allows any key); not a commit permalink, because a
-contract cannot contain the hash of the commit that contains it.
+contract cannot contain the hash of the commit that contains it. It is a convention of
+this set, not a rule of the standard: a token need not be on GitHub. `SGHOST18`, the
+minted-only row, declares nothing at all — not even `repository` — so a consumer sees it
+as `observed`, the "unknown colour" case (spec 00024 Q19).
 
 ## The legacy name — read this before trusting an address
 
