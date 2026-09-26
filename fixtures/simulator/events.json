@@ -659,7 +659,7 @@
       "eventId": 46,
       "row": "CNST18",
       "step": 1,
-      "circuit": "publishOrionName",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "4814220679a9a7a23bba96d03c43ed274ab51ca054df48f2f319b54654ac10ff",
       "segmentStandIn": 1,
@@ -673,7 +673,7 @@
       "eventId": 47,
       "row": "CNST18",
       "step": 2,
-      "circuit": "publishOrionSymbol",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "0be52f5d2241e4fdc35a86c9c92743174400bae3d7db6112cadc2af12f163e08",
       "segmentStandIn": 1,
@@ -687,7 +687,7 @@
       "eventId": 48,
       "row": "CNST18",
       "step": 3,
-      "circuit": "publishOrionDecimals",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "224cecc8127ff744c251063ddce229199dd9ad48bd40461af7a6000b66164aac",
       "segmentStandIn": 1,
@@ -701,7 +701,7 @@
       "eventId": 49,
       "row": "CNST18",
       "step": 4,
-      "circuit": "publishOrionRepository",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "28c881486ec0559495d31161a3942b59cb9b70f3c71a75c883157f4b32c1ce30",
       "segmentStandIn": 1,
@@ -715,7 +715,7 @@
       "eventId": 50,
       "row": "CNST18",
       "step": 5,
-      "circuit": "publishOrionTokenUri",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "51d6a1372a6e23237e42eb6d587a34a8ac443105d24f7236e59393ae5c3fa305",
       "segmentStandIn": 1,
@@ -729,7 +729,7 @@
       "eventId": 51,
       "row": "CNST18",
       "step": 6,
-      "circuit": "publishOrionHemisphere",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "f380a1257c737bff75c0296fe84c4b55007778887cc3527840e2acc2dc1b6e7e",
       "segmentStandIn": 1,
@@ -743,7 +743,7 @@
       "eventId": 52,
       "row": "CNST18",
       "step": 7,
-      "circuit": "publishOrionMagnitude",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "8c69de4cda46c5a98e22c904603fc3e4140d9096fcdbc583d27be1c219da19a8",
       "segmentStandIn": 1,
@@ -757,7 +757,7 @@
       "eventId": 53,
       "row": "CNST18",
       "step": 8,
-      "circuit": "publishOrionMagnitude2",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "3e49fcc1d74c4acadcfa56f9b8c1f19141ba3c875faa168f0f1f97974a2a0b6f",
       "segmentStandIn": 1,
@@ -771,7 +771,7 @@
       "eventId": 54,
       "row": "CNST18",
       "step": 9,
-      "circuit": "publishOrionMagnitude3",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "2a611367a8d9bf1a91d3fa0b430839ce50e9eb4e5650f0667e54793cc1005f52",
       "segmentStandIn": 1,
@@ -785,7 +785,7 @@
       "eventId": 55,
       "row": "CNST18",
       "step": 10,
-      "circuit": "publishOrionMetadata",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "70fe9db142bf512b28f51ca00bac80c0ef20f88239c474e605c221031c4c6973",
       "segmentStandIn": 1,
@@ -799,7 +799,7 @@
       "eventId": 56,
       "row": "CNST18",
       "step": 10,
-      "circuit": "publishOrionMetadata",
+      "circuit": "publishOrion",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "70fe9db142bf512b28f51ca00bac80c0ef20f88239c474e605c221031c4c6973",
       "segmentStandIn": 1,
@@ -813,7 +813,7 @@
       "eventId": 57,
       "row": "CNST18",
       "step": 12,
-      "circuit": "publishLyraName",
+      "circuit": "publishLyra",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "599ce5d244029d74b12fe324f8f7bfc6e7bce3b61a20249d15eabdf8cf0bebea",
       "segmentStandIn": 1,
@@ -827,7 +827,7 @@
       "eventId": 58,
       "row": "CNST18",
       "step": 13,
-      "circuit": "publishLyraSymbol",
+      "circuit": "publishLyra",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "2e602a0cbbafde80effa34c64982f5d5f23757553a9dbd45f0bdbc7ab9660d9f",
       "segmentStandIn": 1,
@@ -841,7 +841,7 @@
       "eventId": 59,
       "row": "CNST18",
       "step": 14,
-      "circuit": "publishLyraDecimals",
+      "circuit": "publishLyra",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "afd40b8df9923c2da0ef272eb26c7d4ea35ca983642ad17183d1d4f39c1cbbd6",
       "segmentStandIn": 1,
@@ -855,7 +855,7 @@
       "eventId": 60,
       "row": "CNST18",
       "step": 15,
-      "circuit": "publishLyraRepository",
+      "circuit": "publishLyra",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "fc6327c26397a57bf373d978ce6678f417daba4db8a5a7b6979b70e51fe7b606",
       "segmentStandIn": 1,
@@ -869,7 +869,7 @@
       "eventId": 61,
       "row": "CNST18",
       "step": 16,
-      "circuit": "publishLyraTokenUri",
+      "circuit": "publishLyra",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "b3a54542a3b0eba71351b3731d91995d6f640eecbca68e7d08faa651b51fa610",
       "segmentStandIn": 1,
@@ -883,7 +883,7 @@
       "eventId": 62,
       "row": "CNST18",
       "step": 17,
-      "circuit": "publishLyraHemisphere",
+      "circuit": "publishLyra",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "dfd4d50f3c364e8519ae429881d58223f725916b2ae752ef82cbebe8292000fa",
       "segmentStandIn": 1,
@@ -897,7 +897,7 @@
       "eventId": 63,
       "row": "CNST18",
       "step": 18,
-      "circuit": "publishLyraMagnitude",
+      "circuit": "publishLyra",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "fc30bddf27fada6d2c6f9a0ffcbe12efde7013974164ccd2fc3bda24388c9077",
       "segmentStandIn": 1,
@@ -911,7 +911,7 @@
       "eventId": 64,
       "row": "CNST18",
       "step": 20,
-      "circuit": "publishCygnusName",
+      "circuit": "publishCygnus",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "bff369a40d05ecc1f35499de71a170ffac4f4c95ebfb97e35db9d05c7d1c03b7",
       "segmentStandIn": 1,
@@ -925,7 +925,7 @@
       "eventId": 65,
       "row": "CNST18",
       "step": 21,
-      "circuit": "publishCygnusSymbol",
+      "circuit": "publishCygnus",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "0b6a4f4b382fac03e3749c4a310f9817cb6fed34ce6094fd5ab71e91e9658c30",
       "segmentStandIn": 1,
@@ -939,7 +939,7 @@
       "eventId": 66,
       "row": "CNST18",
       "step": 22,
-      "circuit": "publishCygnusDecimals",
+      "circuit": "publishCygnus",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "846b2c3ac55f526f2c327055485b971f15dc48550136903215c6ffcf57b77ded",
       "segmentStandIn": 1,
@@ -953,7 +953,7 @@
       "eventId": 67,
       "row": "CNST18",
       "step": 23,
-      "circuit": "publishCygnusRepository",
+      "circuit": "publishCygnus",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "d6746be9dda87dd2f05970cc1870132c541b4ee6e868715d1bac81bdc16a06ef",
       "segmentStandIn": 1,
@@ -967,7 +967,7 @@
       "eventId": 68,
       "row": "CNST18",
       "step": 24,
-      "circuit": "publishCygnusTokenUri",
+      "circuit": "publishCygnus",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "a72bae778324edfc9d0e778503fb51579e05c046fc06ab447964b42c1e35c1cd",
       "segmentStandIn": 1,
@@ -981,7 +981,7 @@
       "eventId": 69,
       "row": "CNST18",
       "step": 25,
-      "circuit": "publishCygnusHemisphere",
+      "circuit": "publishCygnus",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "bd090b2a7b277faba5a797454939f5523b2e8e9596b41c23f924b080aedf5b51",
       "segmentStandIn": 1,
@@ -995,7 +995,7 @@
       "eventId": 70,
       "row": "CNST18",
       "step": 26,
-      "circuit": "publishCygnusMagnitude",
+      "circuit": "publishCygnus",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "8757ba50f7d0b11aeae2886d5507611cc35bbd14dd8e9cb3a92a20abfc3ed7ef",
       "segmentStandIn": 1,
@@ -1009,7 +1009,7 @@
       "eventId": 71,
       "row": "CNST18",
       "step": 28,
-      "circuit": "publishVegaName",
+      "circuit": "publishVega",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "516f9cd4cdae8498f4a49a23d0907de6ade0ee40775698159d137a42654016b0",
       "segmentStandIn": 1,
@@ -1023,7 +1023,7 @@
       "eventId": 72,
       "row": "CNST18",
       "step": 29,
-      "circuit": "publishVegaSymbol",
+      "circuit": "publishVega",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "7623fa747988d974ae52f48928aefa160ea01c2b2c1edce378f84546b29a0757",
       "segmentStandIn": 1,
@@ -1037,7 +1037,7 @@
       "eventId": 73,
       "row": "CNST18",
       "step": 30,
-      "circuit": "publishVegaDecimals",
+      "circuit": "publishVega",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "8199a818193ff091365638d6341795fe4acd8d9ead175a930bce03aefe3d0595",
       "segmentStandIn": 1,
@@ -1051,7 +1051,7 @@
       "eventId": 74,
       "row": "CNST18",
       "step": 31,
-      "circuit": "publishVegaRepository",
+      "circuit": "publishVega",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "2c74f733ec18cd0adc58828831c6b2162cf8b85bd274054e4edc454be037ae7a",
       "segmentStandIn": 1,
@@ -1065,7 +1065,7 @@
       "eventId": 75,
       "row": "CNST18",
       "step": 32,
-      "circuit": "publishVegaTokenUri",
+      "circuit": "publishVega",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "fe39e04f38df6e1c782f96343e173d6974fef61b5f2078ad33fcce42c7ccf26e",
       "segmentStandIn": 1,
@@ -1079,7 +1079,7 @@
       "eventId": 76,
       "row": "CNST18",
       "step": 33,
-      "circuit": "publishVegaHemisphere",
+      "circuit": "publishVega",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "ea52d9369f51a74dbb67e58cfaf3d6fc635d0502c8409cfda922c24f699becaf",
       "segmentStandIn": 1,
@@ -1093,7 +1093,7 @@
       "eventId": 77,
       "row": "CNST18",
       "step": 35,
-      "circuit": "publishAltairName",
+      "circuit": "publishAltair",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "790800ded0a9799fa644b6b1356708840b70bb4dfa736db5eb2a230a24fb17e1",
       "segmentStandIn": 1,
@@ -1107,7 +1107,7 @@
       "eventId": 78,
       "row": "CNST18",
       "step": 36,
-      "circuit": "publishAltairSymbol",
+      "circuit": "publishAltair",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "5fd6d79796740b07cc6d90ad512ac5a8c7b9464106325fa0913d15033e5753c3",
       "segmentStandIn": 1,
@@ -1121,7 +1121,7 @@
       "eventId": 79,
       "row": "CNST18",
       "step": 37,
-      "circuit": "publishAltairDecimals",
+      "circuit": "publishAltair",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "3c58d1e38be4f2a615b99e26d61f9154153a34885778639daf7bb236c45bdb33",
       "segmentStandIn": 1,
@@ -1135,7 +1135,7 @@
       "eventId": 80,
       "row": "CNST18",
       "step": 38,
-      "circuit": "publishAltairRepository",
+      "circuit": "publishAltair",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "b6f4b7e5ee5700c4d4318160e335512fa51fc074ebe66e5a575727013276f15f",
       "segmentStandIn": 1,
@@ -1149,7 +1149,7 @@
       "eventId": 81,
       "row": "CNST18",
       "step": 39,
-      "circuit": "publishAltairTokenUri",
+      "circuit": "publishAltair",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "9c3c59cbac0a327d029cd6e6130a742f071851ea9a7b967ff5babd05ee2bf7b3",
       "segmentStandIn": 1,
@@ -1163,7 +1163,7 @@
       "eventId": 82,
       "row": "CNST18",
       "step": 40,
-      "circuit": "publishAltairHemisphere",
+      "circuit": "publishAltair",
       "contractAddress": "fcfe3a554f45f233eeaef7bd809e95dafdffb4396b6bfccbb86f5b967498d421",
       "txStandIn": "fccae81c854f45f3161051307831d41e42a7d2b81ef35066d7198c2f9663606e",
       "segmentStandIn": 1,
@@ -2442,7 +2442,7 @@
       "packageId": 43,
       "row": "CNST18",
       "step": 1,
-      "circuit": "publishOrionName",
+      "circuit": "publishOrion",
       "sourceOps": [
         "publishPiece"
       ],
@@ -2470,7 +2470,7 @@
       "packageId": 44,
       "row": "CNST18",
       "step": 2,
-      "circuit": "publishOrionSymbol",
+      "circuit": "publishOrion",
       "sourceOps": [
         "publishPiece"
       ],
@@ -2498,7 +2498,7 @@
       "packageId": 45,
       "row": "CNST18",
       "step": 3,
-      "circuit": "publishOrionDecimals",
+      "circuit": "publishOrion",
       "sourceOps": [
         "publishPiece"
       ],
@@ -2526,7 +2526,7 @@
       "packageId": 46,
       "row": "CNST18",
       "step": 4,
-      "circuit": "publishOrionRepository",
+      "circuit": "publishOrion",
       "sourceOps": [
         "publishRepository"
       ],
@@ -2554,7 +2554,7 @@
       "packageId": 47,
       "row": "CNST18",
       "step": 5,
-      "circuit": "publishOrionTokenUri",
+      "circuit": "publishOrion",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -2582,7 +2582,7 @@
       "packageId": 48,
       "row": "CNST18",
       "step": 6,
-      "circuit": "publishOrionHemisphere",
+      "circuit": "publishOrion",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -2610,7 +2610,7 @@
       "packageId": 49,
       "row": "CNST18",
       "step": 7,
-      "circuit": "publishOrionMagnitude",
+      "circuit": "publishOrion",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -2638,7 +2638,7 @@
       "packageId": 50,
       "row": "CNST18",
       "step": 8,
-      "circuit": "publishOrionMagnitude2",
+      "circuit": "publishOrion",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -2666,7 +2666,7 @@
       "packageId": 51,
       "row": "CNST18",
       "step": 9,
-      "circuit": "publishOrionMagnitude3",
+      "circuit": "publishOrion",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -2694,7 +2694,7 @@
       "packageId": 52,
       "row": "CNST18",
       "step": 10,
-      "circuit": "publishOrionMetadata",
+      "circuit": "publishOrion",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -2723,7 +2723,7 @@
       "packageId": 53,
       "row": "CNST18",
       "step": 12,
-      "circuit": "publishLyraName",
+      "circuit": "publishLyra",
       "sourceOps": [
         "publishPiece"
       ],
@@ -2751,7 +2751,7 @@
       "packageId": 54,
       "row": "CNST18",
       "step": 13,
-      "circuit": "publishLyraSymbol",
+      "circuit": "publishLyra",
       "sourceOps": [
         "publishPiece"
       ],
@@ -2779,7 +2779,7 @@
       "packageId": 55,
       "row": "CNST18",
       "step": 14,
-      "circuit": "publishLyraDecimals",
+      "circuit": "publishLyra",
       "sourceOps": [
         "publishPiece"
       ],
@@ -2807,7 +2807,7 @@
       "packageId": 56,
       "row": "CNST18",
       "step": 15,
-      "circuit": "publishLyraRepository",
+      "circuit": "publishLyra",
       "sourceOps": [
         "publishRepository"
       ],
@@ -2835,7 +2835,7 @@
       "packageId": 57,
       "row": "CNST18",
       "step": 16,
-      "circuit": "publishLyraTokenUri",
+      "circuit": "publishLyra",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -2863,7 +2863,7 @@
       "packageId": 58,
       "row": "CNST18",
       "step": 17,
-      "circuit": "publishLyraHemisphere",
+      "circuit": "publishLyra",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -2891,7 +2891,7 @@
       "packageId": 59,
       "row": "CNST18",
       "step": 18,
-      "circuit": "publishLyraMagnitude",
+      "circuit": "publishLyra",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -2919,7 +2919,7 @@
       "packageId": 60,
       "row": "CNST18",
       "step": 20,
-      "circuit": "publishCygnusName",
+      "circuit": "publishCygnus",
       "sourceOps": [
         "publishPiece"
       ],
@@ -2947,7 +2947,7 @@
       "packageId": 61,
       "row": "CNST18",
       "step": 21,
-      "circuit": "publishCygnusSymbol",
+      "circuit": "publishCygnus",
       "sourceOps": [
         "publishPiece"
       ],
@@ -2975,7 +2975,7 @@
       "packageId": 62,
       "row": "CNST18",
       "step": 22,
-      "circuit": "publishCygnusDecimals",
+      "circuit": "publishCygnus",
       "sourceOps": [
         "publishPiece"
       ],
@@ -3003,7 +3003,7 @@
       "packageId": 63,
       "row": "CNST18",
       "step": 23,
-      "circuit": "publishCygnusRepository",
+      "circuit": "publishCygnus",
       "sourceOps": [
         "publishRepository"
       ],
@@ -3031,7 +3031,7 @@
       "packageId": 64,
       "row": "CNST18",
       "step": 24,
-      "circuit": "publishCygnusTokenUri",
+      "circuit": "publishCygnus",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -3059,7 +3059,7 @@
       "packageId": 65,
       "row": "CNST18",
       "step": 25,
-      "circuit": "publishCygnusHemisphere",
+      "circuit": "publishCygnus",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -3087,7 +3087,7 @@
       "packageId": 66,
       "row": "CNST18",
       "step": 26,
-      "circuit": "publishCygnusMagnitude",
+      "circuit": "publishCygnus",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -3115,7 +3115,7 @@
       "packageId": 67,
       "row": "CNST18",
       "step": 28,
-      "circuit": "publishVegaName",
+      "circuit": "publishVega",
       "sourceOps": [
         "publishPiece"
       ],
@@ -3143,7 +3143,7 @@
       "packageId": 68,
       "row": "CNST18",
       "step": 29,
-      "circuit": "publishVegaSymbol",
+      "circuit": "publishVega",
       "sourceOps": [
         "publishPiece"
       ],
@@ -3171,7 +3171,7 @@
       "packageId": 69,
       "row": "CNST18",
       "step": 30,
-      "circuit": "publishVegaDecimals",
+      "circuit": "publishVega",
       "sourceOps": [
         "publishPiece"
       ],
@@ -3199,7 +3199,7 @@
       "packageId": 70,
       "row": "CNST18",
       "step": 31,
-      "circuit": "publishVegaRepository",
+      "circuit": "publishVega",
       "sourceOps": [
         "publishRepository"
       ],
@@ -3227,7 +3227,7 @@
       "packageId": 71,
       "row": "CNST18",
       "step": 32,
-      "circuit": "publishVegaTokenUri",
+      "circuit": "publishVega",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -3255,7 +3255,7 @@
       "packageId": 72,
       "row": "CNST18",
       "step": 33,
-      "circuit": "publishVegaHemisphere",
+      "circuit": "publishVega",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -3283,7 +3283,7 @@
       "packageId": 73,
       "row": "CNST18",
       "step": 35,
-      "circuit": "publishAltairName",
+      "circuit": "publishAltair",
       "sourceOps": [
         "publishPiece"
       ],
@@ -3311,7 +3311,7 @@
       "packageId": 74,
       "row": "CNST18",
       "step": 36,
-      "circuit": "publishAltairSymbol",
+      "circuit": "publishAltair",
       "sourceOps": [
         "publishPiece"
       ],
@@ -3339,7 +3339,7 @@
       "packageId": 75,
       "row": "CNST18",
       "step": 37,
-      "circuit": "publishAltairDecimals",
+      "circuit": "publishAltair",
       "sourceOps": [
         "publishPiece"
       ],
@@ -3367,7 +3367,7 @@
       "packageId": 76,
       "row": "CNST18",
       "step": 38,
-      "circuit": "publishAltairRepository",
+      "circuit": "publishAltair",
       "sourceOps": [
         "publishRepository"
       ],
@@ -3395,7 +3395,7 @@
       "packageId": 77,
       "row": "CNST18",
       "step": 39,
-      "circuit": "publishAltairTokenUri",
+      "circuit": "publishAltair",
       "sourceOps": [
         "setPieceTrait"
       ],
@@ -3423,7 +3423,7 @@
       "packageId": 78,
       "row": "CNST18",
       "step": 40,
-      "circuit": "publishAltairHemisphere",
+      "circuit": "publishAltair",
       "sourceOps": [
         "setPieceTrait"
       ],

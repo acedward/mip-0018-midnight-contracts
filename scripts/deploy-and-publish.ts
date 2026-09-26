@@ -1,18 +1,33 @@
 /**
- * Deploy the reference set to Stagenet and run each row's steps in order.
+ * Deploy the MIP-18 set (deployments/generated-matrix.json: LSUN18 … LLIAR18) and run each
+ * row's steps in order — ONE circuit call per transaction, so every declaration is its own
+ * intent and its own package (UC-1).
  *
- *   MN_SEED=<hex> MN_PROOF_SERVER_URL=http://127.0.0.1:<port> \
- *     npx tsx scripts/deploy-and-publish.ts SSTAR UCOM LSUN DAUR CNST
+ *   # the 00024 local chain (spec 00024 §6.1) — every endpoint explicit:
+ *   MN_NETWORK_ID=undeployed MN_INDEXER_URL=… MN_INDEXER_WS_URL=… MN_NODE_URL=… \
+ *   MN_NODE_WS_URL=… MN_PROOF_SERVER_URL=… MN_MNEMONIC_FILE=<mode-600 mnemonic> \
+ *   MN_EMITTER_SECRET_FILE=<mode-600 hex secret> MN_PRIVATE_STATE_DIR=<dir> \
+ *   MN_DEPLOYMENT_FILE=out/local-deployment.json \
+ *     npx tsx scripts/deploy-and-publish.ts [LSUN18 SNEB18 …]
  *
- * With no arguments every non-optional row of `deployments/generated-matrix.json` is run,
- * in file order. `ROWS` works as an alternative to arguments (comma-separated).
+ *   # Stagenet (MN_NETWORK_ID unset): MN_SEED=<hex> and the Stagenet URL defaults.
  *
- * Resumable per row AND per step: `out/deployment.json` records the contract address and
- * every completed step, and a re-run skips them. A step that fails stops that row and the
- * script moves on to the next one, so one bad row cannot take the whole matrix down.
+ * With no arguments every non-optional row of the matrix is run, in file order. `ROWS` works
+ * as an alternative to arguments (comma-separated). Rows are named by id (`LSUN18`).
  *
- * It starts nothing. The proof server is managed by whoever runs this (project 00020 starts
- * `umbra-00020-proof-server` and stops it by name afterwards).
+ * The emitter secret (spec 00024 Q12): every generated contract's constructor takes
+ * `emitterSecretHashOf(secret)`, and every emitting circuit proves knowledge of the secret
+ * through the `emitterSecret` witness, answered from the contract's private state
+ * (`{ emitterSecret }`, stored by midnight-js in the LevelDB under `MN_PRIVATE_STATE_DIR`).
+ * The secret is read from `MN_EMITTER_SECRET_FILE` and is never logged; it reaches only the
+ * proof server as a private input — use one you run.
+ *
+ * Resumable per row AND per step: the deployment record (`MN_DEPLOYMENT_FILE`, default
+ * `out/deployment.json`) holds the contract address and every completed step, and a re-run
+ * skips them. A step that fails stops that row and the script moves on to the next one, so one
+ * bad row cannot take the whole matrix down.
+ *
+ * It starts nothing. The proof server is managed by whoever runs this.
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -26,16 +41,22 @@ import { MidnightBech32m, UnshieldedAddress } from '@midnightntwrk/wallet-sdk-ad
 import {
   artifactSha256,
   createWalletLogger,
+  emitterSecret,
+  emitterSecretHashOf,
+  emitterWitnesses,
+  enterPrivateStateDirectory,
   hexOf,
   managedDirectory,
+  networkProfile,
   pad,
   REPOSITORY_ROOT,
-  stagenet,
+  walletSeed,
 } from './profile.js';
 
 const MATRIX = path.join(REPOSITORY_ROOT, 'deployments', 'generated-matrix.json');
 const OUT_DIR = path.join(REPOSITORY_ROOT, 'out');
-const OUT_FILE = path.join(OUT_DIR, 'deployment.json');
+/** One record per chain: MN_DEPLOYMENT_FILE (e.g. out/local-deployment.json; not committed). */
+const OUT_FILE = path.resolve(process.env.MN_DEPLOYMENT_FILE?.trim() || path.join(OUT_DIR, 'deployment.json'));
 
 const log = (event: string, fields: Record<string, unknown> = {}): void =>
   console.log(JSON.stringify({ ts: new Date().toISOString(), event, ...fields }));
@@ -47,8 +68,13 @@ const log = (event: string, fields: Record<string, unknown> = {}): void =>
 interface EmitStep {
   kind: 'emit';
   circuit: string;
+  /** A collection's per-piece circuit: its selector (spec 00024 Q20). */
+  args?: number[];
   sourceOps: string[];
-  events: { piece: string | null; domainSep: string; kind: number; key: string; len: number; value: string; text: string | null }[];
+  /** UC-1: the step's one package — its parts and exact bytes. */
+  parts: number;
+  payload: string;
+  events: { piece: string | null; domainSep: string; kind: number; key: string; len: number; parts: number; value: string; payload: string; text: string | null }[];
 }
 interface MintStep {
   kind: 'mint';
@@ -107,6 +133,10 @@ const rows = requested.length > 0
 interface StepRecord {
   index: number;
   circuit: string;
+  /** Emit steps: the declared key, the package's part count and its SHA-256 (from the matrix). */
+  key?: string;
+  parts?: number;
+  payloadSha256?: string;
   txId?: string;
   txHash?: string;
   blockHeight?: number;
@@ -118,6 +148,8 @@ interface RowRecord {
   id: string;
   contract: string;
   artifactSha256?: string;
+  /** The constructor argument: the emitter-secret hash (public). */
+  emitterSecretHash?: string;
   address?: string;
   deploy?: { txId: string; txHash: string; blockHeight: number; at: string };
   tokenColor?: string | Record<string, string>;
@@ -129,16 +161,19 @@ interface Deployment {
   rows: Record<string, RowRecord>;
 }
 
-mkdirSync(OUT_DIR, { recursive: true });
-const profile = stagenet();
+mkdirSync(path.dirname(OUT_FILE), { recursive: true });
+const profile = networkProfile();
 
 const deployment: Deployment = existsSync(OUT_FILE)
   ? (JSON.parse(readFileSync(OUT_FILE, 'utf8')) as Deployment)
   : {
       schemaVersion: 1,
-      network: { name: 'stagenet', networkId: profile.networkId, node: profile.node, indexer: profile.indexer },
+      network: { name: profile.networkId, networkId: profile.networkId, node: profile.node, indexer: profile.indexer },
       rows: {},
     };
+if (deployment.network.networkId !== profile.networkId) {
+  throw new Error(`${OUT_FILE} records network ${deployment.network.networkId}, not ${profile.networkId}`);
+}
 
 const save = (): void => {
   const temporary = `${OUT_FILE}.tmp.${process.pid}`;
@@ -169,15 +204,24 @@ const deriveColor = (domainSep: Uint8Array, addressHex: string): Uint8Array =>
 
 async function main(): Promise<void> {
   setNetworkId(profile.networkId);
-  const seed = process.env.MN_SEED?.trim();
-  if (!seed || !/^[0-9a-f]+$/i.test(seed) || seed.length % 2 !== 0) {
-    throw new Error('MN_SEED must be an even-length hexadecimal string');
-  }
+  const seed = await walletSeed();
+  const secret = emitterSecret();
+  const secretHash = emitterSecretHashOf(secret);
+  const privateStateDirectory = enterPrivateStateDirectory();
 
   const { NetworkId } = await import('@midnightntwrk/wallet-sdk');
-  const environment = { ...profile, walletNetworkId: NetworkId.NetworkId.StageNet };
+  const environment = {
+    ...profile,
+    walletNetworkId: profile.networkId === 'undeployed' ? NetworkId.NetworkId.Undeployed : NetworkId.NetworkId.StageNet,
+  };
 
-  log('wallet.start', { indexer: profile.indexer, proofServer: profile.proofServer });
+  log('wallet.start', {
+    network: profile.networkId,
+    indexer: profile.indexer,
+    proofServer: profile.proofServer,
+    emitterSecretHash: hexOf(secretHash),
+    privateStateDirectory,
+  });
   const walletProvider = await MidnightWalletProvider.build(createWalletLogger(), environment as never, seed);
   await walletProvider.start(false);
   try {
@@ -220,18 +264,24 @@ async function main(): Promise<void> {
       const record: RowRecord = deployment.rows[row.id] ?? { id: row.id, contract: row.contract, steps: [] };
       deployment.rows[row.id] = record;
       record.artifactSha256 = await artifactSha256(row.contract);
+      if (record.emitterSecretHash && record.emitterSecretHash !== hexOf(secretHash)) {
+        throw new Error(`${row.id} was deployed with another emitter secret; use its secret or a new record`);
+      }
+      record.emitterSecretHash = hexOf(secretHash);
 
       const contractModule = (await import(
         `../contracts/managed/${row.contract}/contract/index.js`
       )) as { Contract: never };
       const compiled = CompiledContract.make(row.id, contractModule.Contract).pipe(
-        CompiledContract.withVacantWitnesses,
+        CompiledContract.withWitnesses(emitterWitnesses as never),
         CompiledContract.withCompiledFileAssets(managedDirectory(row.contract)),
       );
       const providers = initializeMidnightProviders(walletProvider, environment as never, {
-        privateStateStoreName: `umbra-00020-${row.id.toLowerCase()}`,
+        privateStateStoreName: `umbra-00024-${row.id.toLowerCase()}`,
         zkConfigPath: managedDirectory(row.contract),
       });
+      /** The private state every emitting circuit's witness reads. */
+      const privateState = { privateStateId: row.id, initialPrivateState: { emitterSecret: secret } };
 
       let contract: { callTx: Record<string, (...args: unknown[]) => Promise<{ public: { txId: string; txHash: string; blockHeight: number; status: string } }>> };
       try {
@@ -240,13 +290,15 @@ async function main(): Promise<void> {
           contract = (await findDeployedContract(providers as never, {
             compiledContract: compiled,
             contractAddress: record.address,
+            ...privateState,
           } as never)) as never;
         } else {
           log('row.deploy', { row: row.id, contract: row.contract });
           const started = Date.now();
           const deployed = (await deployContract(providers as never, {
             compiledContract: compiled,
-            args: [],
+            args: [secretHash],
+            ...privateState,
           } as never)) as never as {
             deployTxData: { public: { contractAddress: string; txId: string; txHash: string; blockHeight: number } };
             callTx: Record<string, (...args: unknown[]) => Promise<{ public: { txId: string; txHash: string; blockHeight: number; status: string } }>>;
@@ -281,7 +333,9 @@ async function main(): Promise<void> {
         if (rowFailed) break;
 
         let args: unknown[] = [];
-        if (step.kind === 'mint') {
+        if (step.kind === 'emit') {
+          args = (step.args ?? []).map((n) => BigInt(n));
+        } else if (step.kind === 'mint') {
           const nonce = step.nonce ? pad(32, step.nonce) : pad(32, `${row.id}:${index}`);
           if (row.template === 'ShieldedCollection') {
             args = [pad(32, step.domain), zswapRecipient(step.to), nonce];
@@ -306,6 +360,13 @@ async function main(): Promise<void> {
           record.steps.push({
             index,
             circuit: step.circuit,
+            ...(step.kind === 'emit'
+              ? {
+                  key: step.events[0]!.key,
+                  parts: step.parts,
+                  payloadSha256: createHash('sha256').update(Buffer.from(step.payload, 'hex')).digest('hex'),
+                }
+              : {}),
             txId: publicData.txId,
             txHash: publicData.txHash,
             blockHeight: Number(publicData.blockHeight),

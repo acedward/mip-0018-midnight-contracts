@@ -58,6 +58,8 @@ interface MatrixEvent {
 interface MatrixStep {
   kind: string;
   circuit: string;
+  /** A collection's per-piece circuit: its selector (spec 00024 Q20). */
+  args?: number[];
   /** Emit steps (UC-1): the step's one package — its part count and exact bytes. */
   parts?: number;
   payload?: string;
@@ -107,8 +109,10 @@ describe('generated-matrix.json', () => {
         expect(step.parts, where).toBe(step.events![0]!.parts);
         expect(step.payload, where).toBe(step.events![0]!.payload);
       }
-      const circuits = row.steps.map((s) => s.circuit).filter((c) => !['mint', 'mintPiece', 'mintShielded', 'mintUnshielded', 'ledgerMint', 'transfer'].includes(c));
-      expect(new Set(circuits).size, `${row.id} circuit names are unique`).toBe(circuits.length);
+      // Every declaration is its own call: a unique circuit, or (a collection, Q20) a unique
+      // selector of its piece's circuit.
+      const calls = row.steps.filter((s) => s.kind === 'emit').map((s) => `${s.circuit}(${(s.args ?? []).join(',')})`);
+      expect(new Set(calls).size, `${row.id} declaration calls are unique`).toBe(calls.length);
     }
   });
 
@@ -126,6 +130,31 @@ describe('generated-matrix.json', () => {
       const covered = new Set(repositories.map((e) => `${e.domainSep}:${e.kind}`));
       expect([...declared].sort(), row.id).toEqual([...covered].sort());
     }
+  });
+
+  it('fits every contract in one local deploy: at most 20 impure circuits (spec 00024 Q20)', () => {
+    // The local chain allows 50 000 bytes written per block and a k=13 verifier key is ~2.1 KB.
+    for (const row of matrix.rows) {
+      const info = JSON.parse(
+        readFileSync(join(ROOT, 'contracts', 'managed', row.contract, 'compiler', 'contract-info.json'), 'utf8'),
+      ) as { circuits: { name: string; proof: boolean }[] };
+      const proven = info.circuits.filter((c) => c.proof).map((c) => c.name);
+      expect(proven.length, `${row.id}: ${proven.join(', ')}`).toBeLessThanOrEqual(20);
+    }
+    const cnst = matrix.rows.find((row) => row.id === 'CNST18')!;
+    const pieces = cnst.steps.filter((s) => s.kind === 'emit');
+    expect(new Set(pieces.map((s) => s.circuit))).toEqual(
+      new Set(['publishOrion', 'publishLyra', 'publishCygnus', 'publishVega', 'publishAltair']),
+    );
+    for (const circuit of new Set(pieces.map((s) => s.circuit))) {
+      const selectors = pieces.filter((s) => s.circuit === circuit).map((s) => s.args![0]);
+      expect(selectors, circuit).toEqual(selectors.map((_, i) => i));
+    }
+  });
+
+  it('refuses an unknown selector of a collection piece circuit', async () => {
+    const instance = await deployGenerated('CNST18');
+    await expect(instance.call('publishVega', 99n)).rejects.toThrow(/no such declaration/);
   });
 
   it('carries the long values of spec 00024 §6.A as multi-part declarations', () => {
@@ -282,7 +311,9 @@ for (const row of matrix.rows) {
     it('refuses every emitting circuit to a caller without the emitter secret', async () => {
       const intruder = await deployGenerated(row.contract, STRANGER_EMITTER_SECRET);
       for (const step of emitting) {
-        await expect(intruder.call(step.circuit), `${row.id}.${step.circuit}`).rejects.toThrow(/not the emitter/);
+        await expect(intruder.call(step.circuit, ...(step.args ?? []).map(BigInt)), `${row.id}.${step.circuit}`).rejects.toThrow(
+          /not the emitter/,
+        );
       }
     });
 
@@ -290,7 +321,7 @@ for (const row of matrix.rows) {
       const instance = await deployGenerated(row.contract);
 
       for (const step of emitting) {
-        const call = await instance.call(step.circuit);
+        const call = await instance.call(step.circuit, ...(step.args ?? []).map(BigInt));
         const expectedEvents = step.events ?? [];
         const parts = expectedEvents.reduce((n, e) => n + e.parts, 0);
         expect(call.events.length, `${row.id}.${step.circuit} event count`).toBe(parts);
