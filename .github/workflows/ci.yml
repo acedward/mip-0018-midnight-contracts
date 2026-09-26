@@ -19,8 +19,9 @@
 #     LOCALLY by whoever edits a `.compact` file. Wire it into CI the day the 0.34.0
 #     toolchain can be installed non-interactively and pinned by version.
 #
-# It also does not deploy anything: every on-chain step needs the Stagenet deployer
-# wallet and a local proof server, both out of scope for CI.
+# It also does not deploy anything: every on-chain step needs a chain (the spec 00024
+# set is deployed on a local Midnight dev chain), a funded wallet and a proof server,
+# all out of scope for CI.
 
 name: CI
 
