@@ -29,9 +29,9 @@ Stand-ins (the simulator has no chain): contract addresses are `sha256("umbra:00
 | File | SHA-256 |
 | --- | --- |
 | `deployments/reference-set.json` | `6b37b56af510d3483899e04690762b12dc0a059853ed07fdd4036e5c2bf6a40b` |
-| `deployments/generated-matrix.json` | `a36da7c201486642077e4b3e64aef3455aad7551ee3fb9c5625cce8f9aa6c3e3` |
-| `scripts/generate-literal-contracts.ts` | `50f7302ed90cd086d9ca62e1d4e1a3a13d47263267f83c1ba5d498e18139a4e0` |
-| `scripts/export-simulator-fixtures.ts` | `781b6977a19eb03c61e8cf1ecb18b1dba929289373b04176176e541cea038677` |
+| `deployments/generated-matrix.json` | `5da77454807c18ce9f836ceb11e69cd27d0e044094b4b8c298e1ea5b23d47ff0` |
+| `scripts/generate-literal-contracts.ts` | `bd7b5d72b30e56464f1effd58762f467798f3e9292c35a8ce08e7668aba8e4a2` |
+| `scripts/export-simulator-fixtures.ts` | `693ab5cd68671a2a1a8e85eb47e66a78a3af912fce04dfd67bbf75d272443189` |
 | `test/token-metadata.ts` | `fdd48f11a00ce33f75dd12b94951bcfade183fc79b93645ff8071785c9963a2e` |
 | `contracts/TokenMetadata.compact` | `7d16b4da4209f48815da07950513bbd58b2f14d795db8fe54f7fd2d5b7fb5847` |
 | `contracts/probe/MetadataProbe.compact` | `d32953eb665d43007f2823ff4f2c461a206cc639617219a90bee3566d44a1fb9` |
@@ -44,7 +44,7 @@ Stand-ins (the simulator has no chain): contract addresses are `sha256("umbra:00
 | `contracts/generated/UMET18.compact` | `8b0c318772a30a5e4eac421507bd0812f15dcdeb8e4c86952ca05284c3f1992e` |
 | `contracts/generated/UPROM18.compact` | `a7c3c6fe2c12a1edf34745c80f3e9322603b6f1906dd3bae392f1bac576cbb6e` |
 | `contracts/generated/DAUR18.compact` | `72271e5dba55a159b527c64b7cba7c0ac104a0d6811ace22e47d931533f14d74` |
-| `contracts/generated/CNST18.compact` | `8dbf4b3246de7fa156557721dc9813ba44bb66a617babab60e581eec0438774d` |
+| `contracts/generated/CNST18.compact` | `9fb1385330ff6476a79d265a6500cb204b147445f9ba529856ddedf5ca1be1c5` |
 | `contracts/generated/LLIAR18.compact` | `ca370e689a6f3d7621e744f9918532217f54e6c128192694bef7cbeb90c6b4e6` |
 
 Compiled artefacts (`contracts/managed/<name>/`, every committed file; keys are not committed):
@@ -61,14 +61,14 @@ Compiled artefacts (`contracts/managed/<name>/`, every committed file; keys are 
 | `UMET18` | `9ff4e8e18c5d9c54e9604755bd7e9c9a8dc1bbe5e2ddf2020be8ea54dc55fe10` |
 | `UPROM18` | `027729c709609127f837eb6399634d3c421f175c8bf3d8264a41b4b82ab29eb2` |
 | `DAUR18` | `b421c752efaf41ac84f6eb71afab3e10fea581d5439fe9b1dfaf006b457128ab` |
-| `CNST18` | `926012d136cd6d5e397d58184c31a2fb1c1c3eca31aa9ece8230a47b97fa21ef` |
+| `CNST18` | `1ddb590de07ac1e93c4d162d26acc4837e09707088781fb773c66cb8ce1f823c` |
 | `LLIAR18` | `77ee2744cb29af43f5cc35524a3d23203de749560592dca12c4b0f7dcadce49e` |
 
 ## Outputs (SHA-256)
 
 | File | SHA-256 |
 | --- | --- |
-| `events.json` | `88e01e9b24a658a0d946e3d156f88634dcd224556c4e4c299072153e482649df` |
+| `events.json` | `adb602dfbb4af99564b845e843de2862fc4a0c0ab2b8cfd11d4e5cfee97c3d16` |
 | `mints.json` | `6a0ebbaa47f9fa48fe552533b6a5f1acbae111d5d4f007711858e23cf263edb2` |
 | `color-vectors.json` | `9d5af0eed68dacb333d6c6e03aa316ac37eef5fa7ee5f88dc4445398b9293216` |
 | `expected-tokens.json` | `668ee3301f09cf12556c0af2b47e10ebe92c46541837e118f63227c2b7434f89` |

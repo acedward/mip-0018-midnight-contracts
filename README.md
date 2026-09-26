@@ -182,9 +182,11 @@ For scale, OpenZeppelin's shielded `_mint` is k=14 and its `_burn` k=16.
 Consequences, all of them already applied here:
 
 - **One declaration per call** (UC-1). A long value is still one call: it emits every
-  part. One circuit per declaration, except the collection (one selector circuit per piece):
-  a deploy writes every verifier key and the local chain allows 50 000 bytes written per
-  block, so a contract keeps ≤ 20 proof circuits.
+  part. One literal circuit per declaration, the collection included: a deploy writes every
+  verifier key, the local chain allows 50 000 bytes written per block and the node admits a
+  transaction only below about 64 % of that, so `CNST18` (39 circuits) is deployed in stages
+  — with the 11 keys that fit, then one maintenance `VerifierKeyInsert` transaction per
+  remaining key (28; TOKEN-METADATA.md, "Circuit cost").
 - **Key generation for the generated set is quick** (k ≤ 14: the eleven contracts, ~100
   circuits, compile with keys in about seven minutes). The templates are compiled
   without keys; a k=19 circuit takes about six minutes of `zkir` and a 134 MB key.
@@ -252,9 +254,9 @@ that is not a valid RFC 6901 pointer, or a symbol over 32 bytes.
 `scripts/generate-literal-contracts.ts` turns it into **the MIP-18 set** — the `18`
 variant of every row (spec 00024 §6.A): ids, symbols, names and domain separators carry
 the suffix, every declaration is a circuit of its own (one declaration per intent), a
-value longer than 188 bytes is one circuit emitting all of its parts (a collection has one
-circuit per piece whose public selector `which` picks one literal declaration per call, so
-its deploy fits one block — TOKEN-METADATA.md, "Circuit cost"), and, where possible,
+value longer than 188 bytes is one circuit emitting all of its parts (the collection's 39
+circuits are more keys than one deploy can write, so it is deployed in stages —
+TOKEN-METADATA.md, "Circuit cost"), and, where possible,
 every token a contract describes also declares `repository` (val-type 4) — the URL of the
 contract's own file on `main`, `https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/<ID>.compact`.
 `SGHOST18`, the minted-only row, declares nothing at all (not even `repository`: a token
@@ -272,7 +274,7 @@ is the emitter-secret hash.
 | `UMET18` | Unshielded Meteor · MIP-18 | `UMET18` | NativeUnshieldedToken | 0 | 4 (after three mints) | 3 | — |
 | `UPROM18` | Unshielded Promise · MIP-18 | `UPROM18` | NativeUnshieldedToken | 0 | 4 | 0 | — |
 | `DAUR18` | Dual Aurora · MIP-18 | `DAUR18` | NativeDualToken | 0 + 1 | 8 | 2 | — |
-| `CNST18` | Constellations · MIP-18 | `CNST18` | ShieldedCollection | 1 (5 pieces) | 36, through 5 per-piece selector circuits | 5 | Orion `metadata` 279 B / 2 parts |
+| `CNST18` | Constellations · MIP-18 | `CNST18` | ShieldedCollection | 1 (5 pieces) | 36 (one circuit each; deployed in stages) | 5 | Orion `metadata` 279 B / 2 parts |
 | `LLIAR18` | Ledger Liar · MIP-18 | `LLIAR18` | NativeUnshieldedToken | 2 declared, 0 minted | 4 | 1 | — |
 
 Eleven deployments and 101 circuit calls (82 declarations in 86 events, 19 mint or
@@ -382,6 +384,7 @@ UTxO is registered).
     MN_MNEMONIC_FILE=/secrets/test-wallet.mnemonic \
     MN_EMITTER_SECRET_FILE=/secrets/emitter.secret \
     MN_PRIVATE_STATE_DIR=/secrets/private-state \
+    MN_MAINTENANCE_KEY_DIR=/secrets/maintenance \
     MN_DEPLOYMENT_FILE=out/local-deployment.json \
       npx tsx scripts/deploy-and-publish.ts LSUN18 LMOON18 SSTAR18 SNEB18 SGHOST18 UCOM18 UMET18 UPROM18 DAUR18 CNST18 LLIAR18
 
@@ -398,6 +401,17 @@ the contract's private state (`{ emitterSecret }`), which midnight-js keeps in a
 named `midnight-level-db` in the working directory — `MN_PRIVATE_STATE_DIR` moves the
 process into a directory of your choice for it (it also holds the contracts' maintenance
 signing keys). Prove on a proof server you run: it sees the secret.
+
+**Staged deploy.** A row whose deploy would exceed 0.6 of the ledger's block limits
+(`MN_STAGED_DEPLOY_BUDGET`; the node refuses a transaction above about 0.64 — `CNST18`: 39
+verifier keys, 1.9 blocks) is deployed with the keys that fit and completed by one
+maintenance-authority
+`VerifierKeyInsert` transaction per remaining key, before its first step
+(`scripts/staged-deploy.ts`). Its maintenance key is created in
+`MN_MAINTENANCE_KEY_DIR/<row>.maintenance-key.json` (mode 600; the directory mode 700) and
+read back on every later run — it is the only thing that can add the remaining keys. The
+record's `staged` entry lists the deployed and inserted circuits, every insert transaction
+and the maintenance counter afterwards; a re-run skips inserts already on chain.
 
 **The stranger check.** `scripts/stranger-check.ts` (same variables, no
 `MN_EMITTER_SECRET_FILE`) finds every deployed contract of a record again with a fresh
@@ -420,6 +434,8 @@ Stagenet deployment described above predates UC-1 and emits the legacy placehold
 | `MN_SEED` / `MN_MNEMONIC_FILE` | — (one required; hex seed, or a mode-600 BIP-39 mnemonic file) |
 | `MN_EMITTER_SECRET_FILE` | — (required by `deploy-and-publish.ts`; mode 600, 32 bytes hex) |
 | `MN_PRIVATE_STATE_DIR` | the working directory (where `midnight-level-db` is opened) |
+| `MN_MAINTENANCE_KEY_DIR` | — (required when a row is deployed in stages: a mode-700 directory for `<row>.maintenance-key.json`) |
+| `MN_STAGED_DEPLOY_BUDGET` | `0.6` — the share of the ledger's block limits a deploy may use before it is staged |
 | `MN_DEPLOYMENT_FILE` | `out/deployment.json` |
 | `MN_NODE_URL` / `MN_NODE_WS_URL` | Stagenet: `https://rpc.stagenet.shielded.tools` / `wss://…` |
 | `MN_INDEXER_URL` / `MN_INDEXER_WS_URL` | Stagenet: `https://indexer.stagenet.shielded.tools/api/v4/graphql` / `wss://…/ws` |

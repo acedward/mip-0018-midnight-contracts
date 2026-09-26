@@ -43,7 +43,7 @@ const log = (event: string, fields: Record<string, unknown> = {}): void =>
 interface MatrixRow {
   id: string;
   contract: string;
-  steps: { kind: string; circuit: string; args?: number[] }[];
+  steps: { kind: string; circuit: string }[];
 }
 interface Deployment {
   network: { networkId: string };
@@ -116,14 +116,14 @@ async function main(): Promise<void> {
 
       for (const step of row.steps.filter((s) => s.kind === 'emit')) {
         try {
-          const result = await contract.callTx[step.circuit]!(...(step.args ?? []).map((n) => BigInt(n)));
+          const result = await contract.callTx[step.circuit]!();
           failures += 1;
-          log('stranger.EMITTED', { row: row.id, circuit: step.circuit, args: step.args, txHash: result.public.txHash });
+          log('stranger.EMITTED', { row: row.id, circuit: step.circuit, txHash: result.public.txHash });
         } catch (error) {
           const message = String(error instanceof Error ? error.message : error);
           if (/TokenMetadata: caller is not the emitter/.test(message)) {
             refused += 1;
-            log('stranger.refused', { row: row.id, circuit: step.circuit, args: step.args, error: message.split('\n')[0] });
+            log('stranger.refused', { row: row.id, circuit: step.circuit, error: message.split('\n')[0] });
           } else {
             failures += 1;
             log('stranger.unexpected-error', { row: row.id, circuit: step.circuit, error: message.split('\n')[0] });

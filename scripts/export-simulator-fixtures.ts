@@ -123,16 +123,7 @@ interface MatrixDeclaration {
   text: string | null;
 }
 type MatrixStep =
-  | {
-      kind: 'emit';
-      circuit: string;
-      /** A collection's per-piece circuit: its selector (spec 00024 Q20). */
-      args?: number[];
-      sourceOps: string[];
-      parts: number;
-      payload: string;
-      events: MatrixDeclaration[];
-    }
+  | { kind: 'emit'; circuit: string; sourceOps: string[]; parts: number; payload: string; events: MatrixDeclaration[] }
   | {
       kind: 'mint';
       circuit: string;
@@ -241,7 +232,7 @@ const textOf = (bytes: Uint8Array): string => new TextDecoder().decode(bytes).re
 
 /** The circuit arguments of one matrix step (a generated contract's own signatures). */
 function argsFor(row: MatrixRow, step: MatrixStep, index: number): unknown[] {
-  if (step.kind === 'emit') return (step.args ?? []).map((n) => BigInt(n));
+  if (step.kind === 'emit') return [];
   if (step.kind === 'ledger') {
     return step.circuit === 'ledgerMint'
       ? [ledgerAccount(step.to), BigInt(step.amount)]

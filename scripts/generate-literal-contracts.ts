@@ -446,14 +446,7 @@ const stepValue = (step: Step, valType: number): { bytes: Uint8Array; text: stri
 // ---------------------------------------------------------------------------
 
 type PlannedStep =
-  | {
-      kind: 'emit';
-      circuit: string;
-      emits: Emit[];
-      sourceOps: string[];
-      /** A collection's per-piece circuit: which of the piece's declarations this call makes. */
-      selector?: number;
-    }
+  | { kind: 'emit'; circuit: string; emits: Emit[]; sourceOps: string[] }
   | {
       kind: 'mint';
       circuit: string;
@@ -486,17 +479,15 @@ const keyIdent = (key: string): string =>
  * the Multi-Part Event rule into one package, and all but the first would be lost. A long
  * value is still ONE circuit: it emits all of its parts from that one call.
  *
- * Circuit names say what they declare: `publish` + [kind, for a dual token] + the key
- * (`publishName`, `publishUnshieldedSymbol`, …); a Null is `clear…`; a key declared again
- * gets an ordinal (`publishName2`, `publishDescription2`).
+ * Circuit names say what they declare: `publish` + [kind, for a dual token] + [piece] +
+ * the key (`publishName`, `publishUnshieldedSymbol`, `publishOrionTokenUri`, …); a Null is
+ * `clear…`; a key declared again gets an ordinal (`publishName2`, `publishOrionMagnitude3`).
  *
- * COLLECTIONS (spec 00024 Q20): a deploy writes one verifier key (~2.1 KB at k=13) per
- * circuit, and the local chain's ledger allows 50 000 bytes written per block, so one
- * circuit per declaration does not fit a many-token contract (CNST18: 36 declarations).
- * A collection therefore has ONE circuit per piece, `publish<Piece>(which: Uint<8>)`: the
- * public selector `which` picks one of that piece's LITERAL declarations (an unknown one
- * fails an assert). Still one declaration per call, one intent, one package; the bytes
- * are the same.
+ * A collection is no exception (spec 00024 Q20 (a)): one literal circuit per declaration,
+ * so CNST18 has 36 of them. A deploy writes one verifier key (~2.1 KB at k=13) per circuit
+ * and the local chain allows 50 000 bytes written per block, so such a contract is deployed
+ * in stages — scripts/deploy-and-publish.ts deploys it with the keys that fit and inserts
+ * the others with maintenance-authority transactions (TOKEN-METADATA.md, "Circuit cost").
  */
 function planSteps(row: Row): PlannedStep[] {
   const planned: PlannedStep[] = [];
@@ -507,18 +498,7 @@ function planSteps(row: Row): PlannedStep[] {
     return n === 1 ? base : `${base}${n}`;
   };
   const dual = row.template === 'NativeDualToken';
-  const collection = row.template === 'ShieldedCollection';
-  const selectors = new Map<string, number>();
   const declare = (emit: Emit, op: string): void => {
-    if (collection) {
-      if (!emit.piece) throw new Error(`${row.id}: a collection declaration needs a piece`);
-      const circuit = `publish${capitalize(emit.piece)}`;
-      const selector = selectors.get(circuit) ?? 0;
-      if (selector > 255) throw new Error(`${row.id}: more than 256 declarations for piece ${emit.piece}`);
-      selectors.set(circuit, selector + 1);
-      planned.push({ kind: 'emit', circuit, emits: [emit], sourceOps: [op], selector });
-      return;
-    }
     const kindLabel = dual ? (emit.kind === 0 ? 'Unshielded' : 'Shielded') : '';
     const piece = emit.piece ? capitalize(emit.piece) : '';
     const verb = emit.valType === VAL_TYPE_NULL ? 'clear' : 'publish';
@@ -684,7 +664,7 @@ const HEADER = (row: Row, planned: PlannedStep[]): string => `// SPDX-License-Id
 // whose hash the constructor stores) can call an emitting circuit.
 //
 // Circuits the deployment calls, in order:
-${planned.map((s) => `//   ${s.circuit}${s.kind === 'emit' ? `${s.selector === undefined ? '' : `(${s.selector})`} (${eventsOf(s)} event${eventsOf(s) === 1 ? '' : 's'})` : ''}`).join('\n')}
+${planned.map((s) => `//   ${s.circuit}${s.kind === 'emit' ? ` (${eventsOf(s)} event${eventsOf(s) === 1 ? '' : 's'})` : ''}`).join('\n')}
 
 pragma language_version >= 0.26.0;
 
@@ -826,40 +806,8 @@ export circuit mintUnshielded(
 `;
 }
 
-/**
- * A collection piece's declaration circuit (spec 00024 Q20): `which` selects ONE of the
- * piece's literal declarations; the branches are in declaration order.
- */
-const selectorCircuit = (circuit: string, steps: Extract<PlannedStep, { kind: 'emit' }>[]): string => {
-  const indent = (text: string): string =>
-    text
-      .split('\n')
-      .map((line) => `  ${line}`)
-      .join('\n');
-  const branches = steps.map((step, i) => {
-    if (step.selector !== i) throw new Error(`${circuit}: selector ${step.selector} out of order`);
-    const parts = eventsOf(step);
-    return `  ${i === 0 ? 'if' : '} else if'} (w == ${i}) {
-    // ${i}: ${step.sourceOps.join(' + ')} — ${parts === 1 ? 'one event' : `${parts} events (${parts} parts)`}
-${indent(step.emits.map(emitCall).join('\n'))}`;
-  });
-  return `/**
- * @description ${steps.length} declarations of one piece, ONE per call: \`which\` selects one
- * literal declaration (0..${steps.length - 1}, in the order below); anything else fails. Emitter only.
- */
-export circuit ${circuit}(which: Uint<8>): [] {
-  TM_assertEmitter();
-  const w = disclose(which);
-${branches.join('\n')}
-  } else {
-    assert(false, "TokenMetadata: no such declaration");
-  }
-}`;
-};
-
 function generateCollection(row: Row, planned: PlannedStep[]): string {
   const emits = planned.filter((s): s is Extract<PlannedStep, { kind: 'emit' }> => s.kind === 'emit');
-  const circuits = [...new Set(emits.map((s) => s.circuit))];
   return `${HEADER(row, planned)}
 export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey, TM_emitterSecretHash };
 
@@ -899,7 +847,7 @@ export circuit mintPiece(
   return mintShieldedToken(disclose(pieceDomain), 1, disclose(nonce), disclose(recipient));
 }
 
-${circuits.map((c) => selectorCircuit(c, emits.filter((s) => s.circuit === c))).join('\n\n')}
+${emits.map(emitCircuit).join('\n\n')}
 `;
 }
 
@@ -1045,8 +993,6 @@ for (const row of rows) {
         ? {
             kind: 'emit',
             circuit: step.circuit,
-            // A collection's per-piece circuit takes its selector (spec 00024 Q20).
-            ...(step.selector === undefined ? {} : { args: [step.selector] }),
             sourceOps: step.sourceOps,
             // One declaration per call (UC-1): the step's package, exactly.
             parts: eventsOf(step),

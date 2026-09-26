@@ -291,7 +291,6 @@ assembly strategy dominates the proving cost. Measured with
 | one literal one-part declaration, no emitter check (`MetadataProbe.publishFixture`) | 6 | 23 |
 | one literal THREE-part declaration, no emitter check (`MetadataProbe.publishLongFixture3`) | 7 | 23 |
 | any literal declaration WITH the emitter check (every `LSUN18` … `LLIAR18` emitting circuit, 1–3 parts) | 13 | 4 162 |
-| a collection piece's selector circuit: 6–10 literal declarations, one chosen per call (`CNST18.publishOrion`) | 13 | 4 508 – 4 780 |
 | one runtime one-part declaration with the emitter check (the templates' `setMetadata`) | 19 | 332 210 |
 | a runtime two-part package (`MetadataProbe.publishRaw2`, test only) | 19 | 494 583 |
 
@@ -304,14 +303,24 @@ byte-identical payloads for two orders of magnitude less proving work
 (`test/generated.test.ts` asserts the identity against the template).
 
 **A deploy writes every verifier key.** A k=13 key is about 2.1 KB, and a block of the
-ledger's default parameters (the local dev chain) allows 50 000 bytes written, so one
-deploy holds about 20 such circuits — one circuit per declaration does not fit a
-many-token contract (the 36 declarations of `CNST18` were 39 circuits, 81 873 bytes of
-keys). The generated **collection** therefore has one circuit per piece,
-`publish<Piece>(which: Uint<8>)`, whose public selector picks ONE of the piece's literal
-declarations per call (an unknown selector fails); every other generated contract keeps
-one circuit per declaration. `test/generated.test.ts` keeps every contract at ≤ 20 proof
-circuits.
+ledger's default parameters (the local dev chain) allows 50 000 bytes written. The node
+admits less than that: it weighs a Midnight transaction by its largest share of the
+ledger's block limits, and one normal transaction may use about 64 % of a block's weight
+(75 % normal dispatch, minus FRAME's 10 % initialization reserve, minus the pallet's fixed
+1 %); above that it refuses with `1010: Invalid Transaction: Transaction would exhaust the
+block limits`. So one deploy holds about 12 such circuits. Every generated contract keeps
+one literal circuit per declaration all the same — the collection too: `CNST18`'s 36
+declarations are 39 circuits, 81 873 bytes of keys, a 95 148-byte deploy. Such a contract
+is **deployed in stages** (spec 00024 Q20 (a); `scripts/staged-deploy.ts`):
+`scripts/deploy-and-publish.ts` deploys it with the keys that fit 0.6 of the ledger's block
+(on the local chain: 11 keys, 27 931 bytes written) and adds every other key with the
+contract's maintenance authority — one `VerifierKeyInsert` maintenance update per key (28
+for `CNST18`; each 1.7–2.5 KB written, under 0.05 of a block) — before any of its circuits
+is called. compact-js attaches a key to every circuit when it initializes a
+contract, so the staged deploy takes the initial state midnight-js builds and deploys a copy
+holding only the chosen operations (same data, same maintenance authority). A consumer
+that reads a contract's circuits must therefore read them from its current state, not from
+its deploy transaction.
 
 Historical Compact/MinoCrab results and their exact fixtures are archived under
 [`benchmarks/`](./benchmarks/) and [`minocrab/`](./minocrab/README.md). Those
