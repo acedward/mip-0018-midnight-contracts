@@ -81,44 +81,13 @@
           "name": "recipient",
           "type": {
             "type-name": "Struct",
-            "name": "Either",
+            "name": "ZswapCoinPublicKey",
             "elements": [
               {
-                "name": "is_left",
+                "name": "bytes",
                 "type": {
-                  "type-name": "Boolean"
-                }
-              },
-              {
-                "name": "left",
-                "type": {
-                  "type-name": "Struct",
-                  "name": "ZswapCoinPublicKey",
-                  "elements": [
-                    {
-                      "name": "bytes",
-                      "type": {
-                        "type-name": "Bytes",
-                        "length": 32
-                      }
-                    }
-                  ]
-                }
-              },
-              {
-                "name": "right",
-                "type": {
-                  "type-name": "Struct",
-                  "name": "ContractAddress",
-                  "elements": [
-                    {
-                      "name": "bytes",
-                      "type": {
-                        "type-name": "Bytes",
-                        "length": 32
-                      }
-                    }
-                  ]
+                  "type-name": "Bytes",
+                  "length": 32
                 }
               }
             ]
@@ -161,39 +130,6 @@
       }
     },
     {
-      "name": "publishPiece",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-        {
-          "name": "pieceDomain",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        },
-        {
-          "name": "nameBytes",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        },
-        {
-          "name": "nameLen",
-          "type": {
-            "type-name": "Uint",
-            "maxval": 255
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
-      }
-    },
-    {
       "name": "setPieceTrait",
       "pure": false,
       "proof": true,
@@ -223,14 +159,14 @@
           "name": "valLen",
           "type": {
             "type-name": "Uint",
-            "maxval": 255
+            "maxval": 65535
           }
         },
         {
           "name": "value",
           "type": {
             "type-name": "Bytes",
-            "length": 189
+            "length": 188
           }
         }
       ],
@@ -239,53 +175,11 @@
         "types": [
         ]
       }
-    },
-    {
-      "name": "owner",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-      ],
-      "result-type": {
-        "type-name": "Struct",
-        "name": "Either",
-        "elements": [
-          {
-            "name": "is_left",
-            "type": {
-              "type-name": "Boolean"
-            }
-          },
-          {
-            "name": "left",
-            "type": {
-              "type-name": "Bytes",
-              "length": 32
-            }
-          },
-          {
-            "name": "right",
-            "type": {
-              "type-name": "Struct",
-              "name": "ContractAddress",
-              "elements": [
-                {
-                  "name": "bytes",
-                  "type": {
-                    "type-name": "Bytes",
-                    "length": 32
-                  }
-                }
-              ]
-            }
-          }
-        ]
-      }
     }
   ],
   "witnesses": [
     {
-      "name": "wit_OwnableSK",
+      "name": "emitterSecret",
       "arguments": [
       ],
       "result type": {
@@ -298,58 +192,18 @@
   ],
   "ledger": [
     {
-      "name": "_isInitialized",
+      "name": "emitterSecretHash",
       "index": 0,
-      "exported": false,
+      "exported": true,
       "storage": "Cell",
       "type": {
-        "type-name": "Boolean"
-      }
-    },
-    {
-      "name": "_owner",
-      "index": 1,
-      "exported": false,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Struct",
-        "name": "Either",
-        "elements": [
-          {
-            "name": "is_left",
-            "type": {
-              "type-name": "Boolean"
-            }
-          },
-          {
-            "name": "left",
-            "type": {
-              "type-name": "Bytes",
-              "length": 32
-            }
-          },
-          {
-            "name": "right",
-            "type": {
-              "type-name": "Struct",
-              "name": "ContractAddress",
-              "elements": [
-                {
-                  "name": "bytes",
-                  "type": {
-                    "type-name": "Bytes",
-                    "length": 32
-                  }
-                }
-              ]
-            }
-          }
-        ]
+        "type-name": "Bytes",
+        "length": 32
       }
     },
     {
       "name": "_isInitialized",
-      "index": 2,
+      "index": 1,
       "exported": false,
       "storage": "Cell",
       "type": {
@@ -358,7 +212,7 @@
     },
     {
       "name": "_name",
-      "index": 3,
+      "index": 2,
       "exported": false,
       "storage": "Cell",
       "type": {
@@ -368,7 +222,7 @@
     },
     {
       "name": "_symbol",
-      "index": 4,
+      "index": 3,
       "exported": false,
       "storage": "Cell",
       "type": {
@@ -378,7 +232,7 @@
     },
     {
       "name": "_decimals",
-      "index": 5,
+      "index": 4,
       "exported": false,
       "storage": "Cell",
       "type": {
@@ -387,28 +241,8 @@
       }
     },
     {
-      "name": "_symbolBytes",
-      "index": 6,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "_symbolLen",
-      "index": 7,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Uint",
-        "maxval": 255
-      }
-    },
-    {
       "name": "_mintedPieces",
-      "index": 8,
+      "index": 5,
       "exported": true,
       "storage": "Counter"
     }

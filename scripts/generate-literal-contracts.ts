@@ -1,6 +1,7 @@
 /**
  * Generate one Compact contract per row of `deployments/reference-set.json`, with every
- * TokenMetadata payload (MIP-0018 section 2, val-type byte included) written as a
+ * TokenMetadata payload (MIP-0018 on the UC-1 layout: 2-byte little-endian `val-len`,
+ * value from offset 68 — see contracts/TokenMetadata.compact) written as a
  * COMPILE-TIME LITERAL.
  *
  * Why (question Q13, decided 2026-09-17):
@@ -15,17 +16,28 @@
  *   time. The parameterised templates stay in `contracts/` as the reference implementation
  *   of the standard, with their measured cost documented in TOKEN-METADATA.md.
  *
+ * Who may emit (spec 00024 Q12): every generated contract takes ONE constructor argument,
+ * `emitterSecretHash` (`TM_emitterSecretHashOf(secret)`, computed off chain), and every
+ * emitting circuit calls `TM_assertEmitter()` before it emits — the module's emitter
+ * secret, answered by the `emitterSecret` witness from the deployer's private state. That
+ * check is the only runtime input of an emitting circuit (~4 100 rows, k=13).
+ *
  * What the generated contracts deliberately do NOT have:
- *   - `Ownable` (and therefore no witness, and therefore no private state at all): every
- *     update is a pre-written circuit, so there is no free-form setter to gate. This keeps
- *     the deploy script free of private-state plumbing.
+ *   - `Ownable` or any free-form setter: every update is a pre-written circuit.
  *   - `Opaque<"string">` metadata and the OpenZeppelin token modules: the generated
- *     contracts talk to the standard library directly, so they take no constructor
- *     arguments and every value in them is visible in the source.
+ *     contracts talk to the standard library directly, so every value in them is visible
+ *     in the source.
+ *
+ * The set it writes (spec 00024 §6.A, "the MIP-18 set"): the `18` variant of every row —
+ * `LSUN18` … `LLIAR18`, "Ledger Sun · MIP-18", domain separators `umbra:lsun18` /
+ * `cnst18:orion` — with ONE declaration per circuit (UC-1: each call is its own intent, so
+ * its own package), a value longer than 188 bytes emitted as all of its parts from that one
+ * call, and a `repository` declaration (val-type 4) of the contract's own source URL on
+ * `main` wherever the reference set places a `publishRepository` step.
  *
  * Usage:
- *   npx tsx scripts/generate-literal-contracts.ts            # every row
- *   npx tsx scripts/generate-literal-contracts.ts SSTAR UCOM # selected rows
+ *   npx tsx scripts/generate-literal-contracts.ts              # every row
+ *   npx tsx scripts/generate-literal-contracts.ts SSTAR UCOM18 # selected rows (base or variant id)
  *
  * Writes `contracts/generated/<ID>.compact` and `deployments/generated-matrix.json`
  * (the step-by-step deployment plan `scripts/deploy-and-publish.ts` executes).
@@ -39,8 +51,17 @@ const OUT_CONTRACTS = path.join(ROOT, 'contracts', 'generated');
 const OUT_MATRIX = path.join(ROOT, 'deployments', 'generated-matrix.json');
 
 const KEY_SIZE = 32;
-/** MIP section 2: the `value` field is 189 bytes wide. */
-const VALUE_SIZE = 189;
+/** UC-1: one event's payload is one part of a package. */
+const PART_SIZE = 256;
+/** UC-1: domainSep 32 + kind 1 + key 32 + val-type 1 + val-len 2 (little-endian). */
+const HEADER_SIZE = 68;
+/** UC-1: one event (a one-part package) holds 188 value bytes after the 68-byte header. */
+const VALUE_SIZE = PART_SIZE - HEADER_SIZE;
+/** UC-1: `val-len` is a `Uint<16>`. */
+const MAX_VAL_LEN = 0xffff;
+
+/** UC-1: the parts a value of `len` bytes needs, `ceil((68 + len) / 256)`, at least 1. */
+const partsFor = (len: number): number => Math.max(1, Math.ceil((HEADER_SIZE + len) / PART_SIZE));
 const DOMAIN_SIZE = 32;
 
 /**
@@ -205,6 +226,8 @@ interface Step {
   nonce?: string;
   piece?: string;
   pieceName?: string;
+  /** `publishRepository` on a dual token: which kind byte the declaration is for. */
+  kind?: number;
 }
 
 interface Row {
@@ -221,7 +244,47 @@ interface Row {
   steps: Step[];
 }
 
+/**
+ * The variant this repository publishes (spec 00024 §6.A, "the MIP-18 set"): every id,
+ * symbol, name and domain separator carries it, so the eleven contracts are `LSUN18` …
+ * `LLIAR18` ("Ledger Sun · MIP-18", `umbra:lsun18`, `cnst18:orion`). The reference set
+ * itself keeps the base names; the variant is applied here, once.
+ */
+const VARIANT = { suffix: '18', label: 'MIP-18' } as const;
+
+/** Where every generated contract's own source lives — the `repository` declaration's value. */
+const REPOSITORY_BLOB = 'https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated';
+
+/** MIP Appendix A: `symbol` is at most 32 bytes. */
+const MAX_SYMBOL_LEN = 32;
+
+const variantOf = (row: Row): Row => {
+  const name = `${row.name} · ${VARIANT.label}`;
+  const symbol = `${row.symbol}${VARIANT.suffix}`;
+  if (Buffer.byteLength(symbol, 'utf8') > MAX_SYMBOL_LEN) {
+    throw new Error(`${row.id}: variant symbol "${symbol}" is longer than ${MAX_SYMBOL_LEN} bytes`);
+  }
+  return {
+    ...row,
+    id: `${row.id}${VARIANT.suffix}`,
+    name,
+    symbol,
+    domain: row.domain === undefined ? undefined : `${row.domain}${VARIANT.suffix}`,
+    // A collection's piece names start with the collection's name ("Constellations · Orion"),
+    // and a rename keeps the variant ("Ledger Moon · MIP-18 (renamed)").
+    steps: row.steps.map((step) => {
+      if (step.pieceName) return { ...step, pieceName: step.pieceName.replace(row.name, name) };
+      if (step.key === 'name' && step.value?.startsWith(row.name)) {
+        return { ...step, value: step.value.replace(row.name, name) };
+      }
+      return step;
+    }),
+  };
+};
+
 const referenceSet = JSON.parse(readFileSync(REFERENCE_SET, 'utf8')) as { rows: Row[] };
+/** The reference set as this repository deploys it: the variant of every row. */
+const variantRows = referenceSet.rows.map(variantOf);
 
 // ---------------------------------------------------------------------------
 // bytes
@@ -289,16 +352,22 @@ interface Emit {
   key: string;
   /** MIP section 2.1 — how a consumer reads `value` */
   valType: number;
-  /** the meaningful value bytes (before NUL padding to 189) */
+  /** the meaningful value bytes (before NUL padding to the end of the package) */
   value: Uint8Array;
+  /** the value region of the package: `value`, NUL-padded to 256·parts − 68 bytes */
   valueHex: string;
   len: number;
+  /** UC-1: how many events (parts) the declaration's package takes */
+  parts: number;
+  /** the exact package bytes, 256·parts, that one circuit call emits */
+  payloadHex: string;
   /** printable form for the matrix file */
   text: string | null;
 }
 
+/** A piece's domain is `<collection symbol>:<piece>` (`cnst18:orion`); a token's is the row's. */
 const domainFor = (row: Row, piece?: string): string =>
-  piece ? `cnst:${piece}` : (row.domain ?? `umbra:${row.symbol.toLowerCase()}`);
+  piece ? `${row.symbol.toLowerCase()}:${piece}` : (row.domain ?? `umbra:${row.symbol.toLowerCase()}`);
 
 const makeEmit = (
   row: Row,
@@ -308,22 +377,35 @@ const makeEmit = (
   text: string | null,
   piece?: string,
 ): Emit => {
-  if (value.length > VALUE_SIZE) {
-    throw new Error(`${row.id}: value for "${key}" is ${value.length} bytes (max ${VALUE_SIZE})`);
+  if (value.length > MAX_VAL_LEN) {
+    throw new Error(`${row.id}: value for "${key}" is ${value.length} bytes (UC-1 val-len max ${MAX_VAL_LEN})`);
   }
   assertKeyIsValid(`${row.id}/${key}`, key);
   assertValueMatchesType(`${row.id}/${key}`, valType, value);
   const domain = domainFor(row, piece);
+  const domainSep = padTo(utf8(domain), DOMAIN_SIZE);
+  const parts = partsFor(value.length);
+  // The package exactly as the circuit emits it (UC-1): header, value, NUL padding.
+  const payload = new Uint8Array(parts * PART_SIZE);
+  payload.set(domainSep, 0);
+  payload[32] = row.kind;
+  payload.set(padTo(utf8(key), KEY_SIZE), 33);
+  payload[65] = valType;
+  payload[66] = value.length & 0xff; // val-len, little-endian
+  payload[67] = value.length >> 8;
+  payload.set(value, HEADER_SIZE);
   return {
     piece: piece ?? null,
     domain,
-    domainSepHex: hex(padTo(utf8(domain), DOMAIN_SIZE)),
+    domainSepHex: hex(domainSep),
     kind: row.kind,
     key,
     valType,
     value,
-    valueHex: hex(padTo(value, VALUE_SIZE)),
+    valueHex: hex(payload.subarray(HEADER_SIZE)),
     len: value.length,
+    parts,
+    payloadHex: hex(payload),
     text,
   };
 };
@@ -380,84 +462,86 @@ type PlannedStep =
 
 const capitalize = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
+/** A key as part of a circuit name: `/metadata/description` → `MetadataDescription`. */
+const keyIdent = (key: string): string =>
+  key
+    .split(/[^A-Za-z0-9]+/)
+    .filter((part) => part.length > 0)
+    .map(capitalize)
+    .join('') || 'Key';
+
 /**
  * Walks a row's ordered steps and produces the ordered circuit calls the deployment makes.
  *
- * Consecutive metadata-emitting steps for the same token collapse into ONE circuit (they
- * are all literal, so N events cost ~8 rows each) — that is what turns SNEB's nine events
- * into a single transaction. A group is broken by a mint, by a change of token, and by a
- * key that the group has already emitted: re-emitting a key is the standard's update path
- * and the matrix wants those in later blocks.
+ * ONE DECLARATION PER CIRCUIT (UC-1, spec 00024 FR-019): every metadata declaration is a
+ * circuit of its own, called once, in a transaction of its own — its own intent, so its
+ * own package. Nothing is ever folded: two declarations in one intent would be merged by
+ * the Multi-Part Event rule into one package, and all but the first would be lost. A long
+ * value is still ONE circuit: it emits all of its parts from that one call.
+ *
+ * Circuit names say what they declare: `publish` + [kind, for a dual token] + [piece] +
+ * the key (`publishName`, `publishUnshieldedSymbol`, `publishOrionTokenUri`, …); a Null is
+ * `clear…`; a key declared again gets an ordinal (`publishName2`, `publishOrionMagnitude3`).
+ *
+ * A collection is no exception (spec 00024 Q20 (a)): one literal circuit per declaration,
+ * so CNST18 has 36 of them. A deploy writes one verifier key (~2.1 KB at k=13) per circuit
+ * and the local chain allows 50 000 bytes written per block, so such a contract is deployed
+ * in stages — scripts/deploy-and-publish.ts deploys it with the keys that fit and inserts
+ * the others with maintenance-authority transactions (TOKEN-METADATA.md, "Circuit cost").
  */
 function planSteps(row: Row): PlannedStep[] {
   const planned: PlannedStep[] = [];
-  let group: { emits: Emit[]; ops: string[]; piece: string | null; keys: Set<string>; publish: string | null } | null = null;
-  let updateIndex = 0;
-
-  const flush = (): void => {
-    if (!group) return;
-    const { emits, ops, piece, keys, publish } = group;
-    let circuit: string;
-    if (publish === 'publishMetadata') circuit = 'publishMetadata';
-    else if (publish === 'publishUnshielded') circuit = 'publishUnshielded';
-    else if (publish === 'publishShielded') circuit = 'publishShielded';
-    else if (publish === 'publishPiece') circuit = `publish${capitalize(piece ?? '')}`;
-    else if (keys.has('name')) circuit = `publishRename${piece ? capitalize(piece) : ''}`;
-    else {
-      updateIndex += 1;
-      circuit = `update${piece ? capitalize(piece) : ''}${updateIndex}`;
-    }
-    planned.push({ kind: 'emit', circuit, emits, sourceOps: ops });
-    group = null;
+  const used = new Map<string, number>();
+  const nameFor = (base: string): string => {
+    const n = (used.get(base) ?? 0) + 1;
+    used.set(base, n);
+    return n === 1 ? base : `${base}${n}`;
   };
-
-  const push = (emits: Emit[], op: string, piece: string | null, publish: string | null): void => {
-    const keys = new Set(emits.map((e) => e.key));
-    if (group && (group.piece !== piece || emits.some((e) => group!.keys.has(e.key)) || publish !== null)) {
-      flush();
-    }
-    if (!group) group = { emits: [], ops: [], piece, keys: new Set(), publish };
-    group.emits.push(...emits);
-    group.ops.push(op);
-    for (const key of keys) group.keys.add(key);
+  const dual = row.template === 'NativeDualToken';
+  const declare = (emit: Emit, op: string): void => {
+    const kindLabel = dual ? (emit.kind === 0 ? 'Unshielded' : 'Shielded') : '';
+    const piece = emit.piece ? capitalize(emit.piece) : '';
+    const verb = emit.valType === VAL_TYPE_NULL ? 'clear' : 'publish';
+    planned.push({ kind: 'emit', circuit: nameFor(`${verb}${kindLabel}${piece}${keyIdent(emit.key)}`), emits: [emit], sourceOps: [op] });
+  };
+  const repositoryEmit = (kind: number, piece?: string): Emit => {
+    const url = `${REPOSITORY_BLOB}/${row.id}.compact`;
+    return makeEmit({ ...row, kind }, 'repository', VAL_TYPE_URI, utf8(url), url, piece);
   };
 
   for (const step of row.steps) {
     switch (step.op) {
       case 'publishMetadata':
-        push(standardEmits(row, row.name), step.op, null, 'publishMetadata');
+        for (const emit of standardEmits(row, row.name)) declare(emit, step.op);
         break;
       case 'publishUnshielded':
-        push(standardEmits({ ...row, kind: 0 }, row.name), step.op, null, 'publishUnshielded');
+        for (const emit of standardEmits({ ...row, kind: 0 }, row.name)) declare(emit, step.op);
         break;
       case 'publishShielded':
-        push(standardEmits({ ...row, kind: 1 }, row.name), step.op, null, 'publishShielded');
+        for (const emit of standardEmits({ ...row, kind: 1 }, row.name)) declare(emit, step.op);
         break;
       case 'publishPiece':
-        push(standardEmits(row, step.pieceName ?? row.name, step.piece), step.op, step.piece ?? null, 'publishPiece');
+        for (const emit of standardEmits(row, step.pieceName ?? row.name, step.piece)) declare(emit, step.op);
+        break;
+      case 'publishRepository':
+        declare(repositoryEmit(step.kind ?? row.kind, step.piece), step.op);
         break;
       case 'setMetadata': {
         const valType = valTypeFor(step.key!, step.valType);
         const { bytes, text } = stepValue(step, valType);
-        push([makeEmit(row, step.key!, valType, bytes, text)], step.op, null, null);
+        declare(makeEmit(row, step.key!, valType, bytes, text), step.op);
         break;
       }
       case 'setPieceTrait': {
         const valType = valTypeFor(step.key!, step.valType);
         const { bytes, text } = stepValue(step, valType);
-        push(
-          [makeEmit(row, step.key!, valType, bytes, text, step.piece)],
-          step.op,
-          step.piece ?? null,
-          null,
-        );
+        declare(makeEmit(row, step.key!, valType, bytes, text, step.piece), step.op);
         break;
       }
       case 'mint':
       case 'mintShielded':
       case 'mintUnshielded':
       case 'mintPiece': {
-        flush();
         const piece = step.piece ?? null;
         const domain = domainFor(row, step.piece);
         const shielded =
@@ -479,7 +563,6 @@ function planSteps(row: Row): PlannedStep[] {
       }
       case 'ledgerMint':
       case 'transfer':
-        flush();
         planned.push({
           kind: 'ledger',
           circuit: step.op === 'ledgerMint' ? 'ledgerMint' : 'transfer',
@@ -492,7 +575,6 @@ function planSteps(row: Row): PlannedStep[] {
         throw new Error(`${row.id}: unknown step op "${step.op}"`);
     }
   }
-  flush();
   return planned;
 }
 
@@ -512,48 +594,77 @@ const VAL_TYPE_NAME: Record<number, string> = {
 const emitCall = (emit: Emit): string => {
   const domain = byteLiteral(utf8(emit.domain), DOMAIN_SIZE);
   const key = byteLiteral(utf8(emit.key), KEY_SIZE);
-  const value = byteLiteral(emit.value, VALUE_SIZE);
-  const shown =
+  const full =
     emit.valType === VAL_TYPE_NULL
       ? 'Null — the current value is cleared, the history is not'
       : emit.text === null
         ? '<bytes>'
         : JSON.stringify(emit.text);
-  return `  // ${emit.piece ? `${emit.piece}: ` : ''}${emit.key} = ${shown} (val-type ${emit.valType} ${
+  // Keep the comment readable: a long value is spelled out in the literals below anyway.
+  const shown = full.length > 120 ? `${full.slice(0, 117)}…` : full;
+  const comment = `  // ${emit.piece ? `${emit.piece}: ` : ''}${emit.key} = ${shown} (val-type ${emit.valType} ${
     VAL_TYPE_NAME[emit.valType]
-  }, val-len ${emit.len})
-  TM_emitTokenMetadata(${domain}, ${emit.kind}, ${key}, ${emit.valType}, ${emit.len}, ${value});`;
+  }, val-len ${emit.len}${emit.parts > 1 ? `, ${emit.parts} parts` : ''})`;
+  if (emit.parts === 1) {
+    return `${comment}
+  TM_emitTokenMetadata(${domain}, ${emit.kind}, ${key}, ${emit.valType}, ${emit.len}, ${byteLiteral(emit.value, VALUE_SIZE)});`;
+  }
+  // UC-1 multi-part: ONE call emits the head (header + the first 188 value bytes) and then
+  // every 256-byte continuation part, in order, in one intent ([Y] §5). All literal.
+  const lines = [
+    comment,
+    `  TM_emitHead(${domain}, ${emit.kind}, ${key}, ${emit.valType}, ${emit.len}, ${byteLiteral(
+      emit.value.subarray(0, VALUE_SIZE),
+      VALUE_SIZE,
+    )});`,
+  ];
+  for (let offset = VALUE_SIZE, part = 2; offset < emit.value.length; offset += PART_SIZE, part += 1) {
+    lines.push(`  // part ${part} of ${emit.parts}`);
+    lines.push(`  TM_emitPart(${byteLiteral(emit.value.subarray(offset, offset + PART_SIZE), PART_SIZE)});`);
+  }
+  return lines.join('\n');
 };
 
-const emitCircuit = (step: Extract<PlannedStep, { kind: 'emit' }>, guard: string | null): string => {
+/** The events (parts) a step emits: one per one-part declaration, `parts` per long one. */
+const eventsOf = (step: Extract<PlannedStep, { kind: 'emit' }>): number =>
+  step.emits.reduce((n, e) => n + e.parts, 0);
+
+/**
+ * One declaration's circuit. It writes no ledger state — every part of a package runs
+ * from the same pre-state, and calling it again only re-declares the same value (last
+ * write wins) — and checks the emitter secret before it emits anything.
+ */
+const emitCircuit = (step: Extract<PlannedStep, { kind: 'emit' }>): string => {
   const body = step.emits.map(emitCall).join('\n');
-  const guarded = guard
-    ? `  assert(!${guard}, "TokenMetadata: already published");\n  ${guard} = true;\n`
-    : '';
+  const parts = eventsOf(step);
   return `/**
- * @description ${step.sourceOps.join(' + ')} — ${step.emits.length} TokenMetadata event${
-    step.emits.length === 1 ? '' : 's'
-  }, every byte a compile-time literal.
+ * @description ${step.sourceOps.join(' + ')} — one declaration, ${
+    parts === 1 ? 'one TokenMetadata event' : `${parts} TokenMetadata events (${parts} parts, one intent)`
+  }, every byte a compile-time literal. Emitter only.
  */
 export circuit ${step.circuit}(): [] {
-${guarded}${body}
+  TM_assertEmitter();
+${body}
 }`;
 };
 
 const HEADER = (row: Row, planned: PlannedStep[]): string => `// SPDX-License-Identifier: Apache-2.0
 //
 // GENERATED FILE — do not edit. Produced by scripts/generate-literal-contracts.ts from
-// deployments/reference-set.json row "${row.id}" (${row.name}).
+// deployments/reference-set.json row "${row.id.slice(0, -VARIANT.suffix.length)}", ${VARIANT.label} variant:
+// ${row.id} (${row.name}). Source of truth for its \`repository\` declaration:
+// ${REPOSITORY_BLOB}/${row.id}.compact
 //
 // ${row.name} (${row.symbol}), ${row.decimals} decimals, kind byte ${row.kind}, template
-// ${row.template}. Every TokenMetadata payload below is a compile-time literal, so each
-// emitting circuit costs about eight rows per event (k=7) instead of the ~120 000 rows per
-// runtime event the parameterised templates in contracts/ pay — see TOKEN-METADATA.md
-// "Circuit cost" and question Q13. The bytes emitted are exactly the bytes MIP
-// section 2 fixes, val-type byte included.
+// ${row.template}. Every TokenMetadata payload below is a compile-time literal (MIP-0018 on
+// the UC-1 layout: 2-byte little-endian val-len, value from offset 68), so an emitting
+// circuit costs a few rows per event plus the emitter-secret check (~4 100 rows, k=13)
+// instead of the ~120 000 rows per runtime event the parameterised templates in contracts/
+// pay — see TOKEN-METADATA.md "Circuit cost". Only the emitter (the holder of the secret
+// whose hash the constructor stores) can call an emitting circuit.
 //
 // Circuits the deployment calls, in order:
-${planned.map((s) => `//   ${s.circuit}${s.kind === 'emit' ? ` (${s.emits.length} event${s.emits.length === 1 ? '' : 's'})` : ''}`).join('\n')}
+${planned.map((s) => `//   ${s.circuit}${s.kind === 'emit' ? ` (${eventsOf(s)} event${eventsOf(s) === 1 ? '' : 's'})` : ''}`).join('\n')}
 
 pragma language_version >= 0.26.0;
 
@@ -561,11 +672,19 @@ import CompactStandardLibrary;
 import "../TokenMetadata" prefix TM_;
 `;
 
+/** The constructor every generated contract has: it stores the emitter-secret hash. */
+const CONSTRUCTOR = `/**
+ * @param {Bytes<32>} emitterSecretHash - \`TM_emitterSecretHashOf(secret)\`, computed off chain;
+ *   every emitting circuit proves knowledge of \`secret\` through the \`emitterSecret\` witness.
+ */
+constructor(emitterSecretHash: Bytes<32>) {
+  TM_initializeEmitter(emitterSecretHash);
+}`;
+
 function generateNativeSingle(row: Row, planned: PlannedStep[], shielded: boolean): string {
   const domain = domainFor(row);
   const domainLiteral = byteLiteral(utf8(domain), DOMAIN_SIZE);
   const emits = planned.filter((s): s is Extract<PlannedStep, { kind: 'emit' }> => s.kind === 'emit');
-  const hasPublish = emits.some((s) => s.circuit === 'publishMetadata');
   const mintCircuit = shielded
     ? `/**
  * @description Mints \`amount\` of this token to \`recipient\` as a shielded coin.
@@ -594,13 +713,15 @@ export circuit mint(
 }`;
 
   const exports = shielded
-    ? 'export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey };'
-    : 'export { ContractAddress, Either, Maybe, UserAddress };';
+    ? 'export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey, TM_emitterSecretHash };'
+    : 'export { ContractAddress, Either, Maybe, UserAddress, TM_emitterSecretHash };';
 
   return `${HEADER(row, planned)}
 ${exports}
 
-${hasPublish ? '/** True once `publishMetadata` has run; it may run only once. */\nexport ledger _published: Boolean;\n' : ''}/** How many mints this contract has made, for a cheap read-back after deployment. */
+${CONSTRUCTOR}
+
+/** How many mints this contract has made, for a cheap read-back after deployment. */
 export ledger _mints: Counter;
 
 /** The domain separator this contract mints and describes under. */
@@ -626,11 +747,7 @@ export circuit mints(): Uint<64> {
   return _mints.read() as Uint<64>;
 }
 
-${emits
-  .map((s) => emitCircuit(s, s.circuit === 'publishMetadata' ? '_published' : null))
-  .join('\n\n')}
-
-${mintCircuit}
+${[...emits.map(emitCircuit), mintCircuit].join('\n\n')}
 `;
 }
 
@@ -639,11 +756,11 @@ function generateDual(row: Row, planned: PlannedStep[]): string {
   const domainLiteral = byteLiteral(utf8(domain), DOMAIN_SIZE);
   const emits = planned.filter((s): s is Extract<PlannedStep, { kind: 'emit' }> => s.kind === 'emit');
   return `${HEADER(row, planned)}
-export { ContractAddress, Either, Maybe, ShieldedCoinInfo, UserAddress, ZswapCoinPublicKey };
+export { ContractAddress, Either, Maybe, ShieldedCoinInfo, UserAddress, ZswapCoinPublicKey, TM_emitterSecretHash };
 
-/** One guard per kind: the two halves of this token are published separately. */
-export ledger _publishedUnshielded: Boolean;
-export ledger _publishedShielded: Boolean;
+${CONSTRUCTOR}
+
+/** How many mints this contract has made (either kind), for a cheap read-back. */
 export ledger _mints: Counter;
 
 /** The one domain separator both kinds of this token share. */
@@ -664,18 +781,7 @@ export circuit mints(): Uint<64> {
   return _mints.read() as Uint<64>;
 }
 
-${emits
-  .map((s) =>
-    emitCircuit(
-      s,
-      s.circuit === 'publishUnshielded'
-        ? '_publishedUnshielded'
-        : s.circuit === 'publishShielded'
-          ? '_publishedShielded'
-          : null,
-    ),
-  )
-  .join('\n\n')}
+${emits.map(emitCircuit).join('\n\n')}
 
 /** Mints the shielded half of this token (kind byte 1). */
 export circuit mintShielded(
@@ -703,7 +809,9 @@ export circuit mintUnshielded(
 function generateCollection(row: Row, planned: PlannedStep[]): string {
   const emits = planned.filter((s): s is Extract<PlannedStep, { kind: 'emit' }> => s.kind === 'emit');
   return `${HEADER(row, planned)}
-export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey };
+export { ContractAddress, Either, Maybe, ShieldedCoinInfo, ZswapCoinPublicKey, TM_emitterSecretHash };
+
+${CONSTRUCTOR}
 
 /** How many pieces have been minted, for a cheap read-back after deployment. */
 export ledger _mintedPieces: Counter;
@@ -739,7 +847,7 @@ export circuit mintPiece(
   return mintShieldedToken(disclose(pieceDomain), 1, disclose(nonce), disclose(recipient));
 }
 
-${emits.map((s) => emitCircuit(s, null)).join('\n\n')}
+${emits.map(emitCircuit).join('\n\n')}
 `;
 }
 
@@ -747,7 +855,9 @@ function generateLedger(row: Row, planned: PlannedStep[]): string {
   const emits = planned.filter((s): s is Extract<PlannedStep, { kind: 'emit' }> => s.kind === 'emit');
   const domainLiteral = byteLiteral(utf8(domainFor(row)), DOMAIN_SIZE);
   return `${HEADER(row, planned)}
-export { ContractAddress, Either, Maybe };
+export { ContractAddress, Either, Maybe, TM_emitterSecretHash };
+
+${CONSTRUCTOR}
 
 /**
  * Balances live in contract state, not in UTxOs — that is what kind bit 1 declares. The
@@ -756,8 +866,6 @@ export { ContractAddress, Either, Maybe };
  */
 export ledger _balances: Map<Bytes<32>, Uint<128>>;
 export ledger _totalSupply: Uint<128>;
-/** True once \`publishMetadata\` has run; it may run only once. */
-export ledger _published: Boolean;
 
 /** The 32 bytes this contract uses as its token id (any value the contract chooses). */
 export circuit domainSep(): Bytes<32> {
@@ -801,9 +909,7 @@ export circuit transfer(sender: Bytes<32>, recipient: Bytes<32>, amount: Uint<12
   _balances.insert(disclose(recipient), (prior + disclose(amount)) as Uint<128>);
 }
 
-${emits
-  .map((s) => emitCircuit(s, s.circuit === 'publishMetadata' ? '_published' : null))
-  .join('\n\n')}
+${emits.map(emitCircuit).join('\n\n')}
 `;
 }
 
@@ -811,10 +917,13 @@ ${emits
 // main
 // ---------------------------------------------------------------------------
 
+// Rows are selected by their variant id (`LSUN18`) or their base id (`LSUN`).
 const selected = process.argv.slice(2);
-const rows = referenceSet.rows.filter((row) => selected.length === 0 || selected.includes(row.id));
+const rows = variantRows.filter(
+  (row) => selected.length === 0 || selected.includes(row.id) || selected.includes(row.id.slice(0, -VARIANT.suffix.length)),
+);
 if (selected.length > 0 && rows.length !== selected.length) {
-  const missing = selected.filter((id) => !rows.some((row) => row.id === id));
+  const missing = selected.filter((id) => !rows.some((row) => row.id === id || row.id === `${id}${VARIANT.suffix}`));
   throw new Error(`unknown row id(s): ${missing.join(', ')}`);
 }
 
@@ -825,7 +934,8 @@ mkdirSync(OUT_CONTRACTS, { recursive: true });
 const existing: Record<string, unknown> = {};
 if (existsSync(OUT_MATRIX)) {
   const previous = JSON.parse(readFileSync(OUT_MATRIX, 'utf8')) as { rows?: { id: string }[] };
-  for (const row of previous.rows ?? []) existing[row.id] = row;
+  // Only rows of the current variant survive: a regeneration never keeps a stale base row.
+  for (const row of previous.rows ?? []) if (variantRows.some((v) => v.id === row.id)) existing[row.id] = row;
 }
 
 for (const row of rows) {
@@ -852,7 +962,7 @@ for (const row of rows) {
   }
   const file = path.join(OUT_CONTRACTS, `${row.id}.compact`);
   writeFileSync(file, source, 'utf8');
-  const eventCount = planned.reduce((n, s) => n + (s.kind === 'emit' ? s.emits.length : 0), 0);
+  const eventCount = planned.reduce((n, s) => n + (s.kind === 'emit' ? eventsOf(s) : 0), 0);
   console.log(
     `${row.id.padEnd(7)} ${row.template.padEnd(22)} ${String(planned.length).padStart(2)} transactions, ${String(
       eventCount,
@@ -884,6 +994,9 @@ for (const row of rows) {
             kind: 'emit',
             circuit: step.circuit,
             sourceOps: step.sourceOps,
+            // One declaration per call (UC-1): the step's package, exactly.
+            parts: eventsOf(step),
+            payload: step.emits.map((e) => e.payloadHex).join(''),
             events: step.emits.map((e) => ({
               piece: e.piece,
               domainSep: e.domainSepHex,
@@ -891,7 +1004,9 @@ for (const row of rows) {
               key: e.key,
               valType: e.valType,
               len: e.len,
+              parts: e.parts,
               value: e.valueHex,
+              payload: e.payloadHex,
               text: e.text,
             })),
           }
@@ -900,14 +1015,14 @@ for (const row of rows) {
   };
 }
 
-const matrixRows = referenceSet.rows.map((row) => existing[row.id]).filter((row) => row !== undefined);
+const matrixRows = variantRows.map((row) => existing[row.id]).filter((row) => row !== undefined);
 
 writeFileSync(
   OUT_MATRIX,
   `${JSON.stringify(
     {
       $comment:
-        'GENERATED by scripts/generate-literal-contracts.ts. The ordered on-chain plan for each row of deployments/reference-set.json: which generated contract to deploy, which circuit each step calls, and the exact TokenMetadata bytes that step emits. scripts/deploy-and-publish.ts executes it and scripts/export-fixtures.ts checks the chain against it.',
+        'GENERATED by scripts/generate-literal-contracts.ts. The ordered on-chain plan for the MIP-18 variant of each row of deployments/reference-set.json (spec 00024 §6.A: LSUN18 … LLIAR18): which generated contract to deploy, which circuit each step calls, and — for an emit step — its ONE declaration (UC-1: one declaration per circuit call, one intent, one package): `parts` (the events the package takes) and `payload` (its exact 256·parts bytes, hex). scripts/deploy-and-publish.ts executes it and scripts/export-simulator-fixtures.ts runs it in the simulator. Every generated contract takes the emitter-secret hash as its only constructor argument.',
       generatedAt: new Date().toISOString(),
       rows: matrixRows,
     },

@@ -1,25 +1,28 @@
 /**
- * The compile-and-layout proof for the MIP's 256-byte payload (MIP-0018
- * sections 1, 2, 2.1, 2.2, 3 and 5.1 —
- * `mips/mip-0018-on-chain-token-metadata.md` @ `37a3471`, MIP PR #325).
+ * The compile-and-layout proof for the MIP's payload on the UC-1 layout (MIP-0018
+ * sections 1, 2, 2.1, 2.2, 3 and 5.1 — `mips/mip-0018-on-chain-token-metadata.md`
+ * @ `37a3471`, MIP PR #325 — amended in development by UC-1: a 2-byte
+ * little-endian `val-len` at offset 66, the value from offset 68).
  *
- * `Bytes[...spread, byte, ...spread]` is what the reference module uses to
- * concatenate the six fields into one `Bytes<256>`. These tests assert that it
- * compiles (the module is imported, so it did), that the field widths really
- * add up to 256, and that every field lands on the offset the MIP documents —
- * in particular the val-type byte at 65, which is what moved in this revision.
+ * `Bytes[...spread, byte, ...(valLen as Bytes<2>), ...spread]` is what the
+ * reference module uses to concatenate the six fields into one `Bytes<256>`.
+ * These tests assert that it compiles (the module is imported, so it did), that
+ * the field widths really add up to 256, and that every field lands on the
+ * offset UC-1 documents — in particular `val-len`, low byte first at 66.
  */
 import { describe, expect, it } from 'vitest';
 import { Contract, ledger } from '../contracts/managed/MetadataProbe/contract/index.js';
 import {
   EVENT_NAME,
+  HEADER_SIZE,
   KIND_LEDGER_FLAG,
   KIND_SHIELDED,
   KIND_UNSHIELDED,
   LEGACY_EVENT_NAME,
   MAX_INTEGER_LEN,
-  MAX_VALUE_LEN,
+  MAX_VAL_LEN,
   MISC_EVENT_SIZE,
+  ONE_PART_VALUE_SIZE,
   PAYLOAD_SIZE,
   PRE_MIP_EVENT_NAME,
   VAL_TYPE_INTEGER,
@@ -39,11 +42,18 @@ import {
 type PrivateState = Record<string, never>;
 
 const probe = () => deploy<PrivateState>(new Contract<PrivateState>({}), {});
-const emptyValue = new Uint8Array(MAX_VALUE_LEN);
+const emptyValue = new Uint8Array(ONE_PART_VALUE_SIZE);
+/** The 188-byte one-part value field with `text` in its meaningful prefix. */
+const value188 = (text: string) => {
+  const v = new Uint8Array(ONE_PART_VALUE_SIZE);
+  v.set(new TextEncoder().encode(text));
+  return v;
+};
 
-describe('the MIP payload layout', () => {
-  it('adds up: 32 + 1 + 32 + 1 + 1 + 189 = 256', () => {
-    expect(32 + 1 + 32 + 1 + 1 + MAX_VALUE_LEN).toBe(PAYLOAD_SIZE);
+describe('the MIP payload layout (UC-1)', () => {
+  it('adds up: 32 + 1 + 32 + 1 + 2 + 188 = 256', () => {
+    expect(32 + 1 + 32 + 1 + 2).toBe(HEADER_SIZE);
+    expect(HEADER_SIZE + ONE_PART_VALUE_SIZE).toBe(PAYLOAD_SIZE);
     expect(MISC_EVENT_SIZE).toBe(32 + PAYLOAD_SIZE);
   });
 
@@ -61,48 +71,35 @@ describe('the MIP payload layout', () => {
     expect(events.every((e) => e.eventName === EVENT_NAME)).toBe(true);
   });
 
-  it('emits the three core fields with Appendix A’s val-types (1, 1, 2)', async () => {
+  it('emits ONE literal one-part declaration per call (UC-1: one declaration per intent)', async () => {
     const c = await probe();
-    const { events, rawEvents } = await c.call('publishFixture');
+    const { events, packages, rawEvents } = await c.call('publishFixture');
 
-    expect(events).toHaveLength(3);
-    for (const [i, event] of events.entries()) {
-      expect(rawMiscBytes(rawEvents[i] as never)).toHaveLength(MISC_EVENT_SIZE);
-      expect(event.payload).toHaveLength(PAYLOAD_SIZE);
-      expect(event.address).toBe(c.address);
-      expect(hex(event.domainSep)).toBe(hex(pad(32, 'umbra:probe')));
-      expect(event.kind).toBe(KIND_SHIELDED);
-      expect(event.value).toHaveLength(MAX_VALUE_LEN);
-      expect(validateTokenMetadataEvent(event)).toEqual({ outcome: 'accepted' });
-    }
-
-    expect(events.map((e) => e.keyText)).toEqual(['name', 'symbol', 'decimals']);
-    expect(events.map((e) => e.valType)).toEqual([
-      VAL_TYPE_STRING,
-      VAL_TYPE_STRING,
-      VAL_TYPE_INTEGER,
-    ]);
-    expect(events[0].len).toBe(11);
-    expect(events[0].valueText).toBe('Umbra Probe');
-    expect(events[1].len).toBe(6);
-    expect(events[1].valueText).toBe('UPROBE');
-    // decimals travels as `Uint<128>` — MIP Appendix A's recommended width —
-    // so val-len is 16 and the 16 bytes are the LITTLE-ENDIAN serialization of
-    // the number: the value in the low byte, then fifteen NULs.
-    expect(events[2].len).toBe(16);
-    expect(hex(events[2].valueBytes)).toBe('06000000000000000000000000000000');
-    expect(decodeInteger(events[2].valueBytes)).toBe(6n);
-
-    // The name field is NUL-padded after `val-len`, never truncated.
-    expect(events[0].value.subarray(11).every((b) => b === 0)).toBe(true);
+    expect(events).toHaveLength(1);
+    expect(packages).toHaveLength(1);
+    const [event] = packages;
+    expect(rawMiscBytes(rawEvents[0] as never)).toHaveLength(MISC_EVENT_SIZE);
+    expect(event.payload).toHaveLength(PAYLOAD_SIZE);
+    expect(event.parts).toBe(1);
+    expect(event.address).toBe(c.address);
+    expect(hex(event.domainSep)).toBe(hex(pad(32, 'umbra:probe')));
+    expect(event.kind).toBe(KIND_SHIELDED);
+    expect(event.keyText).toBe('name');
+    expect(event.valType).toBe(VAL_TYPE_STRING);
+    expect(event.len).toBe(11);
+    expect(event.valueText).toBe('Umbra Probe');
+    expect(event.value).toHaveLength(ONE_PART_VALUE_SIZE);
+    // The value is NUL-padded after `val-len`, never truncated.
+    expect(event.trailing.every((b) => b === 0)).toBe(true);
+    expect(event.trailing).toHaveLength(ONE_PART_VALUE_SIZE - 11);
+    expect(validateTokenMetadataEvent(event)).toEqual({ outcome: 'accepted' });
   });
 
   it('places every field at its documented byte offset', async () => {
     const c = await probe();
     const domainSep = new Uint8Array(32).fill(0xab);
     const key = pad(32, 'magnitude');
-    const value = new Uint8Array(MAX_VALUE_LEN);
-    value.set(new TextEncoder().encode('1.25'));
+    const value = value188('1.25');
 
     const { events } = await c.call(
       'publishRaw',
@@ -122,30 +119,84 @@ describe('the MIP payload layout', () => {
     expect(p[32]).toBe(KIND_UNSHIELDED); //                   32      kind
     expect(hex(p.subarray(33, 65))).toBe(hex(key)); //        33..64  key
     expect(p[65]).toBe(VAL_TYPE_STRING); //                   65      val-type
-    expect(p[66]).toBe(4); //                                 66      val-len
-    expect(hex(p.subarray(67, 256))).toBe(hex(value)); //     67..255 value
+    expect(p[66]).toBe(4); //                                 66      val-len, low byte
+    expect(p[67]).toBe(0); //                                 67      val-len, high byte
+    expect(hex(p.subarray(68, 256))).toBe(hex(value)); //     68..255 value
     expect(event.keyText).toBe('magnitude');
     expect(event.valueText).toBe('1.25');
   });
 
-  it('carries a full-length value (val-len = 189) without spilling out of the payload', async () => {
+  it('writes val-len as a little-endian Uint<16>: the low byte at 66, the high byte at 67', async () => {
     const c = await probe();
-    const value = new Uint8Array(MAX_VALUE_LEN);
-    for (let i = 0; i < value.length; i += 1) value[i] = 0x41 + (i % 26);
+    for (const [valLen, low, high] of [
+      [258, 0x02, 0x01],
+      [700, 0xbc, 0x02],
+      [MAX_VAL_LEN, 0xff, 0xff],
+    ] as const) {
+      const { events } = await c.call(
+        'publishRaw',
+        pad(32, 'umbra:probe'),
+        BigInt(KIND_SHIELDED),
+        pad(32, 'metadata'),
+        BigInt(VAL_TYPE_STRING),
+        BigInt(valLen),
+        emptyValue,
+      );
+      const p = events[0].payload;
+      expect([p[66], p[67]], `val-len ${valLen}`).toEqual([low, high]);
+      expect(events[0].len, `val-len ${valLen}`).toBe(valLen);
+      // One event is a one-part package: it holds 188 value bytes, so a declared
+      // length beyond them is rejected (the bytes are not in the package).
+      expect(validateTokenMetadataEvent(events[0]), `val-len ${valLen}`).toEqual({
+        outcome: 'rejected',
+        reason: 'val_len_beyond_package',
+      });
+    }
+  });
 
+  it('carries a full one-part value (val-len = 188) and rejects 189 in one part', async () => {
+    const c = await probe();
+    const value = new Uint8Array(ONE_PART_VALUE_SIZE);
+    for (let i = 0; i < value.length; i += 1) value[i] = 0x41 + (i % 26);
+    const raw = (valLen: number) =>
+      c.call(
+        'publishRaw',
+        pad(32, 'umbra:probe'),
+        BigInt(KIND_SHIELDED),
+        pad(32, 'description'),
+        BigInt(VAL_TYPE_STRING),
+        BigInt(valLen),
+        value,
+      );
+
+    const full = (await raw(ONE_PART_VALUE_SIZE)).events[0];
+    expect(full.payload).toHaveLength(PAYLOAD_SIZE);
+    expect(full.len).toBe(ONE_PART_VALUE_SIZE);
+    expect(hex(full.valueBytes)).toBe(hex(value));
+    expect(full.trailing).toHaveLength(0);
+    expect(validateTokenMetadataEvent(full)).toEqual({ outcome: 'accepted' });
+
+    const over = (await raw(ONE_PART_VALUE_SIZE + 1)).events[0];
+    expect(over.valueBytes).toHaveLength(ONE_PART_VALUE_SIZE); // the decoder clamps
+    expect(validateTokenMetadataEvent(over)).toEqual({ outcome: 'rejected', reason: 'val_len_beyond_package' });
+  });
+
+  it('ignores the bytes after the value, whatever they are (MIP; spec 00024 Q11)', async () => {
+    const c = await probe();
+    const value = value188('ok');
+    value.fill(0x5a, 2); // non-zero bytes after val-len
     const { events } = await c.call(
       'publishRaw',
       pad(32, 'umbra:probe'),
       BigInt(KIND_SHIELDED),
-      pad(32, 'metadata/0'),
+      pad(32, 'description'),
       BigInt(VAL_TYPE_STRING),
-      BigInt(MAX_VALUE_LEN),
+      2n,
       value,
     );
-
-    expect(events[0].payload).toHaveLength(PAYLOAD_SIZE);
-    expect(events[0].len).toBe(MAX_VALUE_LEN);
-    expect(hex(events[0].valueBytes)).toBe(hex(value));
+    expect(events[0].valueText).toBe('ok');
+    expect(events[0].trailing.every((b) => b === 0x5a)).toBe(true);
+    expect(validateTokenMetadataEvent(events[0])).toEqual({ outcome: 'accepted' });
   });
 
   it('emits the kind byte verbatim, including the two ledger kinds and one a consumer rejects', async () => {
@@ -178,13 +229,13 @@ describe('the MIP payload layout', () => {
     const raw = (kind: number, key: Uint8Array, valType: number, valLen: number) =>
       c.call('publishRaw', pad(32, 'umbra:probe'), BigInt(kind), key, BigInt(valType), BigInt(valLen), emptyValue);
 
-    // val-len above the 189-byte value field
+    // a declared length the one-part package does not hold (68 + 200 > 256)
     const long = await raw(KIND_SHIELDED, pad(32, 'name'), VAL_TYPE_STRING, 200);
     expect(long.events[0].len).toBe(200);
-    expect(long.events[0].valueBytes).toHaveLength(MAX_VALUE_LEN); // the decoder clamps
+    expect(long.events[0].valueBytes).toHaveLength(ONE_PART_VALUE_SIZE); // the decoder clamps
     expect(validateTokenMetadataEvent(long.events[0])).toEqual({
       outcome: 'rejected',
-      reason: 'val_len_too_long',
+      reason: 'val_len_beyond_package',
     });
 
     // a reserved val-type
@@ -224,7 +275,7 @@ describe('the MIP payload layout', () => {
     const raw = (valType: number, valLen: number, value: Uint8Array) =>
       c.call('publishRaw', pad(32, 'umbra:probe'), BigInt(KIND_SHIELDED), pad(32, 'supplyCap'), BigInt(valType), BigInt(valLen), value);
     const padded = (bytes: Uint8Array) => {
-      const v = new Uint8Array(MAX_VALUE_LEN);
+      const v = new Uint8Array(ONE_PART_VALUE_SIZE);
       v.set(bytes);
       return v;
     };
@@ -252,7 +303,7 @@ describe('the MIP payload layout', () => {
   it('takes a complete JSON value of any shape and rejects a fragment (MIP section 2.1)', async () => {
     const c = await probe();
     const json = async (text: string) => {
-      const v = new Uint8Array(MAX_VALUE_LEN);
+      const v = new Uint8Array(ONE_PART_VALUE_SIZE);
       const bytes = new TextEncoder().encode(text);
       v.set(bytes);
       const { events } = await c.call(
@@ -294,8 +345,8 @@ describe('the MIP payload layout', () => {
     expect(proper.events[0].len).toBe(0);
     expect(validateTokenMetadataEvent(proper.events[0])).toEqual({ outcome: 'accepted' });
 
-    // Consumers MUST ignore all 189 bytes, so a non-NUL filler changes nothing.
-    const noisy = await nul(0, new Uint8Array(MAX_VALUE_LEN).fill(0x5a));
+    // Consumers MUST ignore every value byte, so a non-NUL filler changes nothing.
+    const noisy = await nul(0, new Uint8Array(ONE_PART_VALUE_SIZE).fill(0x5a));
     expect(validateTokenMetadataEvent(noisy.events[0])).toEqual({ outcome: 'accepted' });
 
     // A non-zero val-len is not a Null: `serialize<[], 0>([])` is zero bytes.
@@ -316,11 +367,7 @@ describe('the MIP payload layout', () => {
         key,
         BigInt(VAL_TYPE_STRING),
         2n,
-        (() => {
-          const v = new Uint8Array(MAX_VALUE_LEN);
-          v.set(new TextEncoder().encode('ok'));
-          return v;
-        })(),
+        value188('ok'),
       );
       return validateTokenMetadataEvent(events[0]);
     };
@@ -359,6 +406,14 @@ describe('the MIP payload layout', () => {
     expect(validateTokenMetadataEvent(events[0])).toEqual({ outcome: 'accepted' });
   });
 
+  // The two ignored names keep the one-byte `val-len`, 189-byte value layout their
+  // emitters used; a MIP-0018 consumer never reads their payload, it ignores the name.
+  const legacyValue = (text: string) => {
+    const v = new Uint8Array(189);
+    v.set(new TextEncoder().encode(text));
+    return v;
+  };
+
   it('emits the pre-MIP event name too, and a consumer IGNORES it rather than rejecting it', async () => {
     const c = await probe();
     const { events } = await c.call(
@@ -368,17 +423,15 @@ describe('the MIP payload layout', () => {
       pad(32, 'name'),
       BigInt(VAL_TYPE_STRING),
       4n,
-      (() => {
-        const v = new Uint8Array(MAX_VALUE_LEN);
-        v.set(new TextEncoder().encode('Old!'));
-        return v;
-      })(),
+      legacyValue('Old!'),
     );
 
     expect(events[0].eventName).toBe(LEGACY_EVENT_NAME);
     expect(events[0].payload).toHaveLength(PAYLOAD_SIZE);
-    // Everything about the payload is well formed; only the name disqualifies it.
-    expect(events[0].valueText).toBe('Old!');
+    // Everything about the payload is well formed in ITS layout (val-len one byte
+    // at 66, value from 67); only the name disqualifies it.
+    expect(events[0].payload[66]).toBe(4);
+    expect(new TextDecoder().decode(events[0].payload.subarray(67, 71))).toBe('Old!');
     expect(validateTokenMetadataEvent(events[0])).toEqual({
       outcome: 'ignored',
       reason: 'event_name',
@@ -397,20 +450,88 @@ describe('the MIP payload layout', () => {
       pad(32, 'name'),
       BigInt(VAL_TYPE_STRING),
       13n,
-      (() => {
-        const v = new Uint8Array(MAX_VALUE_LEN);
-        v.set(new TextEncoder().encode('Shielded Star'));
-        return v;
-      })(),
+      legacyValue('Shielded Star'),
     );
 
     expect(events[0].eventName).toBe(PRE_MIP_EVENT_NAME);
     expect(events[0].payload).toHaveLength(PAYLOAD_SIZE);
-    expect(events[0].valueText).toBe('Shielded Star');
+    expect(new TextDecoder().decode(events[0].payload.subarray(67, 80))).toBe('Shielded Star');
     expect(validateTokenMetadataEvent(events[0])).toEqual({
       outcome: 'ignored',
       reason: 'event_name',
     });
+  });
+
+  // ---- UC-1 multi-part: one call, one intent, one package ------------------
+  const LONG3 = "MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-001";
+  const LONG2 = "MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zer";
+
+  it('merges a literal three-part declaration into ONE package of 768 bytes (68 + 700)', async () => {
+    const c = await probe();
+    const { events, packages } = await c.call('publishLongFixture3');
+    expect(events).toHaveLength(3); // three Misc events …
+    expect(packages).toHaveLength(1); // … one package ([Y] §4: one contract, one intent, one name)
+    const [pkg] = packages;
+    expect(pkg.parts).toBe(3);
+    expect(pkg.payload).toHaveLength(768);
+    expect(pkg.len).toBe(700);
+    expect([pkg.payload[66], pkg.payload[67]]).toEqual([0xbc, 0x02]);
+    expect(pkg.valueText).toBe(LONG3);
+    expect(pkg.trailing).toHaveLength(0); // 700 bytes fill the package exactly
+    // No hidden framing: part 2 is the value's bytes 188..443, verbatim.
+    expect(new TextDecoder().decode(events[1].payload)).toBe(LONG3.slice(188, 444));
+    expect(validateTokenMetadataEvent(pkg)).toEqual({ outcome: 'accepted' });
+    // Read on its own, the head is a one-part package that does not hold its value.
+    expect(validateTokenMetadataEvent(events[0])).toEqual({ outcome: 'rejected', reason: 'val_len_beyond_package' });
+  });
+
+  it('keeps the trailing zeros of the last part: a 300-byte value in two parts', async () => {
+    const c = await probe();
+    const { packages } = await c.call('publishLongFixture2');
+    expect(packages).toHaveLength(1);
+    const [pkg] = packages;
+    expect(pkg.parts).toBe(2);
+    expect(pkg.payload).toHaveLength(512); // all 256 bytes of every part kept ([Y] §4)
+    expect(pkg.len).toBe(300);
+    expect(pkg.valueText).toBe(LONG2);
+    expect(pkg.trailing).toHaveLength(512 - 68 - 300);
+    expect(pkg.trailing.every((b) => b === 0)).toBe(true);
+    expect(validateTokenMetadataEvent(pkg)).toEqual({ outcome: 'accepted' });
+  });
+
+  it('rejects a declared length beyond the package, and accepts one that exactly fills it', async () => {
+    const c = await probe();
+    const head = new Uint8Array(ONE_PART_VALUE_SIZE).fill(0x61);
+    const part = new Uint8Array(PAYLOAD_SIZE).fill(0x62);
+    const two = (valLen: number) =>
+      c.call('publishRaw2', pad(32, 'umbra:probe'), BigInt(KIND_SHIELDED), pad(32, 'description'),
+        BigInt(VAL_TYPE_STRING), BigInt(valLen), head, part);
+    // 68 + 444 = 512: exactly two parts.
+    const full = (await two(444)).packages[0];
+    expect(full.parts).toBe(2);
+    expect(full.valueBytes).toHaveLength(444);
+    expect(validateTokenMetadataEvent(full)).toEqual({ outcome: 'accepted' });
+    // 68 + 445 > 512: one byte the package does not hold.
+    expect(validateTokenMetadataEvent((await two(445)).packages[0])).toEqual({
+      outcome: 'rejected',
+      reason: 'val_len_beyond_package',
+    });
+    const three = await c.call('publishRaw3', pad(32, 'umbra:probe'), BigInt(KIND_SHIELDED),
+      pad(32, 'description'), BigInt(VAL_TYPE_STRING), BigInt(MAX_VAL_LEN), head, part, part);
+    expect(three.packages[0].parts).toBe(3);
+    expect(validateTokenMetadataEvent(three.packages[0])).toEqual({ outcome: 'rejected', reason: 'val_len_beyond_package' });
+  });
+
+  it('ignores non-zero bytes after a multi-part value (MIP; spec 00024 Q11)', async () => {
+    const c = await probe();
+    const head = new Uint8Array(ONE_PART_VALUE_SIZE).fill(0x61);
+    const part = new Uint8Array(PAYLOAD_SIZE).fill(0x5a); // bytes 188.. of the value region
+    part.fill(0x62, 0, 12); // the value's last 12 bytes: 188 + 12 = 200
+    const { packages } = await c.call('publishRaw2', pad(32, 'umbra:probe'), BigInt(KIND_SHIELDED),
+      pad(32, 'description'), BigInt(VAL_TYPE_STRING), 200n, head, part);
+    expect(packages[0].valueBytes).toHaveLength(200);
+    expect(packages[0].trailing.every((b) => b === 0x5a)).toBe(true);
+    expect(validateTokenMetadataEvent(packages[0])).toEqual({ outcome: 'accepted' });
   });
 
   it('counts its publish calls in ledger state', async () => {

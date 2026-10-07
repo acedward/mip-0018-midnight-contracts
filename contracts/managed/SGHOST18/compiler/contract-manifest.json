@@ -1,0 +1,98 @@
+{
+  "manifest-version": "1",
+  "compiler-version": "0.34.0",
+  "language-version": "0.26.0",
+  "runtime-version": "0.19.0",
+  "compiler": {
+    "type": "directory",
+    "contract-info.json": {
+      "type": "file",
+      "size": 3763,
+      "hash": "0e6266b2cd2639bdca390f4e90617ada24f515d579172e86ad0e98bde935a944"
+    }
+  },
+  "contract": {
+    "type": "directory",
+    "index.d.ts": {
+      "type": "file",
+      "size": 3303,
+      "hash": "92efbbd391ff96927056bcb57db8bb0bc6265c5de3b56a8fa6c19ca6c8dd582f"
+    },
+    "index.js": {
+      "type": "file",
+      "size": 37063,
+      "hash": "1efe0343b5763ae5e3c3af385162fb712e9ccda307f4261c3b2821ae107975ef"
+    },
+    "index.js.map": {
+      "type": "file",
+      "size": 2008,
+      "hash": "326a471ca618148b966f50c445ea66fd782f3d000d7d95b3e25eadb2afe548a6"
+    }
+  },
+  "zkir": {
+    "type": "directory",
+    "mint.bzkir": {
+      "type": "file",
+      "size": 676,
+      "hash": "961a54c1a106fde64473af03ea3160676fb546aef203ce007145268831de96dc"
+    },
+    "mint.zkir": {
+      "type": "file",
+      "size": 9898,
+      "hash": "83e811603ad3987e6ed4a2688043fc864849620d8d5c22e0f4f4d9c439557f72"
+    },
+    "mints.bzkir": {
+      "type": "file",
+      "size": 71,
+      "hash": "54256ea587373b9aaa828e2dd69b7a0a65e254eee38552fe7cc43829342cca04"
+    },
+    "mints.zkir": {
+      "type": "file",
+      "size": 953,
+      "hash": "ba6542ebf183e7a9eccff55f2267a05bc4b63b1ca2c7e32355d9c540831ac072"
+    },
+    "tokenColor.bzkir": {
+      "type": "file",
+      "size": 133,
+      "hash": "e3a60a2290817a8c3a26f5ce9b836e77dd1e50b96079c38b0c0325e47a0f7a03"
+    },
+    "tokenColor.zkir": {
+      "type": "file",
+      "size": 1526,
+      "hash": "1bc05a87fe9fb470bbd97bfda3c853e2a7413c9b2e419e2c78502aedc820b589"
+    }
+  },
+  "keys": {
+    "type": "directory",
+    "mint.prover": {
+      "type": "file",
+      "size": 5205643,
+      "hash": "ba2edc3b911e33dc6bcb193c9ef1db5eac989fa8c2af048064968fc69876541b"
+    },
+    "mint.verifier": {
+      "type": "file",
+      "size": 2119,
+      "hash": "d89b45603ac0c2ebc308c57d24256b5c4ed4b4a35339d02eb6f6e6366aac7e2b"
+    },
+    "mints.prover": {
+      "type": "file",
+      "size": 22435,
+      "hash": "79744f0b6e0fcac6fe668c194382ca3da8acc530adc635602d171420848f4c5f"
+    },
+    "mints.verifier": {
+      "type": "file",
+      "size": 1351,
+      "hash": "807711f46c0753b6cd8875cb2e1267b57190402a2da7c59dd42905b3e65a91ae"
+    },
+    "tokenColor.prover": {
+      "type": "file",
+      "size": 2814667,
+      "hash": "e595526b17c390451ebdab8cccf9603b0064b98d77d56346ff9d1d002b1050ee"
+    },
+    "tokenColor.verifier": {
+      "type": "file",
+      "size": 2119,
+      "hash": "8eabd57288eb65d6532ce6683f100923652125d716e0b415e6f38b30fa22b170"
+    }
+  }
+}

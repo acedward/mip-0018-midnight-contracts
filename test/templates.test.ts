@@ -2,16 +2,17 @@
  * The five reference templates, exercised in the Compact simulator.
  *
  * What these tests are for:
- *  - every template emits exactly the events MIP-0018 prescribes (MIP PR #325,
- *    `mips/mip-0018-on-chain-token-metadata.md` @ `37a3471`), with the right
- *    kind byte and MIP Appendix A's val-type per key;
+ *  - every template emits exactly the declarations MIP-0018 prescribes (MIP PR #325,
+ *    `mips/mip-0018-on-chain-token-metadata.md` @ `37a3471`) on the UC-1 layout, with
+ *    the right kind byte and MIP Appendix A's val-type per key — and ONE declaration
+ *    per call (UC-1: one package, one declaration, one intent);
  *  - the colour an outside observer derives from `(domainSep, address)` equals
  *    the colour the contract mints — the check the indexer performs (spec §6.4)
  *    and MIP-0011/0014's mandatory re-derivation;
  *  - the mint effects a scanner reads from a transcript appear where expected,
  *    and a ledger token produces none at all;
- *  - access control holds: publish-once really is once, and only the owner can
- *    update metadata.
+ *  - access control holds: only the holder of the emitter secret can emit
+ *    (spec 00024 Q12), and only the owner can mint a ledger token.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -20,7 +21,7 @@ import {
   persistentCommit,
   persistentHash,
 } from '@midnight-ntwrk/compact-runtime';
-import { Contract as NativeShielded } from '../contracts/managed/NativeShieldedToken/contract/index.js';
+import { Contract as NativeShielded, ledger as shieldedLedger } from '../contracts/managed/NativeShieldedToken/contract/index.js';
 import { Contract as NativeUnshielded } from '../contracts/managed/NativeUnshieldedToken/contract/index.js';
 import { Contract as NativeDual } from '../contracts/managed/NativeDualToken/contract/index.js';
 import { Contract as Collection } from '../contracts/managed/ShieldedCollection/contract/index.js';
@@ -30,13 +31,18 @@ import {
   KIND_LEDGER_FLAG,
   KIND_SHIELDED,
   KIND_UNSHIELDED,
-  MAX_VALUE_LEN,
+  ONE_PART_VALUE_SIZE,
+  STRANGER_EMITTER_SECRET,
+  TEST_EMITTER_SECRET,
   VAL_TYPE_INTEGER,
   VAL_TYPE_JSON,
   VAL_TYPE_STRING,
   VAL_TYPE_URI,
   decodeInteger,
   deploy,
+  emitterSecretHashOf,
+  emitterWitnesses,
+  encodeInteger,
   hex,
   pad,
   validateTokenMetadataEvent,
@@ -46,7 +52,7 @@ import {
 // helpers
 // --------------------------------------------------------------------------
 
-type OwnerState = { secretKey: Uint8Array };
+type State = { emitterSecret: Uint8Array; secretKey: Uint8Array };
 
 const BYTES32 = new CompactTypeBytes(32);
 const VECTOR2_BYTES32 = new CompactTypeVector(2, BYTES32);
@@ -54,6 +60,7 @@ const DERIVE_TOKEN = pad(32, 'midnight:derive_token');
 
 const OWNER_SK = new Uint8Array(32).fill(7);
 const STRANGER_SK = new Uint8Array(32).fill(9);
+const EMITTER_HASH = emitterSecretHashOf(TEST_EMITTER_SECRET);
 
 /** OpenZeppelin `Utils.computeAccountId`: `persistentHash<Vector<1,Bytes<32>>>([sk])`. */
 function accountId(secretKey: Uint8Array): Uint8Array {
@@ -64,12 +71,21 @@ function ownerOf(secretKey: Uint8Array) {
   return { is_left: true, left: accountId(secretKey), right: { bytes: new Uint8Array(32) } };
 }
 
-const ownableWitnesses = {
-  wit_OwnableSK: ({ privateState }: { privateState: OwnerState }): [OwnerState, Uint8Array] => [
+/** The emitter secret for every template, plus the OpenZeppelin keys `LedgerToken` reads. */
+const witnesses = {
+  ...emitterWitnesses,
+  wit_OwnableSK: ({ privateState }: { privateState: State }): [State, Uint8Array] => [
+    privateState,
+    privateState.secretKey,
+  ],
+  wit_FungibleTokenSK: ({ privateState }: { privateState: State }): [State, Uint8Array] => [
     privateState,
     privateState.secretKey,
   ],
 };
+
+const emitter: State = { emitterSecret: TEST_EMITTER_SECRET, secretKey: OWNER_SK };
+const stranger: State = { emitterSecret: STRANGER_EMITTER_SECRET, secretKey: STRANGER_SK };
 
 /**
  * What an outside observer computes from a transaction alone:
@@ -86,11 +102,21 @@ function byteLen(text: string): bigint {
   return BigInt(new TextEncoder().encode(text).length);
 }
 
-/** The MIP's 189-byte `value` field with `text` in its meaningful prefix. */
-function value189(text: string): Uint8Array {
-  const out = new Uint8Array(MAX_VALUE_LEN);
-  out.set(new TextEncoder().encode(text));
+/** The one-part value field (188 bytes, UC-1) with `bytes` in its meaningful prefix. */
+function value188(bytes: Uint8Array | string): Uint8Array {
+  const out = new Uint8Array(ONE_PART_VALUE_SIZE);
+  out.set(typeof bytes === 'string' ? new TextEncoder().encode(bytes) : bytes);
   return out;
+}
+
+/** The setter arguments of MIP Appendix A's three core fields, one declaration each. */
+function standardFields(name: string, symbol: string, decimals: number): [Uint8Array, bigint, bigint, Uint8Array][] {
+  return [
+    [pad(32, 'name'), BigInt(VAL_TYPE_STRING), byteLen(name), value188(name)],
+    [pad(32, 'symbol'), BigInt(VAL_TYPE_STRING), byteLen(symbol), value188(symbol)],
+    // decimals is `Uint<128>` (MIP Appendix A's recommended width): val-len 16, little-endian.
+    [pad(32, 'decimals'), BigInt(VAL_TYPE_INTEGER), 16n, value188(encodeInteger(BigInt(decimals)))],
+  ];
 }
 
 const zswapRecipient = (label: string) => ({
@@ -98,6 +124,9 @@ const zswapRecipient = (label: string) => ({
   left: { bytes: pad(32, label) },
   right: { bytes: new Uint8Array(32) },
 });
+
+/** OpenZeppelin 0.4.0-alpha.3 (#833): the shielded modules mint to a `ZswapCoinPublicKey` only. */
+const zswapKey = (label: string) => ({ bytes: pad(32, label) });
 
 const userRecipient = (label: string) => ({
   is_left: false,
@@ -121,58 +150,55 @@ const mintValues = (effects: any, which: 'shieldedMints' | 'unshieldedMints') =>
 
 const SSTAR_DOMAIN = pad(32, 'umbra:sstar');
 
-async function shieldedToken(secretKey = OWNER_SK) {
-  return deploy<OwnerState>(
-    new NativeShielded<OwnerState>(ownableWitnesses),
-    { secretKey },
-    [
-      ownerOf(OWNER_SK),
-      SSTAR_DOMAIN,
-      'Shielded Star',
-      pad(32, 'Shielded Star'),
-      13n,
-      'SSTAR',
-      pad(32, 'SSTAR'),
-      5n,
-      6n,
-    ],
-  );
+async function shieldedToken(state: State = emitter) {
+  return deploy<State>(new NativeShielded<State>(witnesses), state, [
+    EMITTER_HASH,
+    SSTAR_DOMAIN,
+    'Shielded Star',
+    'SSTAR',
+    6n,
+  ]);
 }
 
 describe('NativeShieldedToken', () => {
-  it('publishes name, symbol and decimals as three shielded-kind events', async () => {
+  it('stores the emitter-secret hash the constructor was given', async () => {
     const c = await shieldedToken();
-    const { events } = await c.call('publishMetadata');
+    expect(hex(shieldedLedger(c.state as never).TM_emitterSecretHash)).toBe(hex(EMITTER_HASH));
+  });
 
-    expect(events).toHaveLength(3);
-    expect(events.map((e) => e.keyText)).toEqual(['name', 'symbol', 'decimals']);
-    // Only the string-typed fields have a text form; `decimals` is an integer
-    // and its bytes are asserted below, never read as text.
-    expect(events.slice(0, 2).map((e) => e.valueText)).toEqual(['Shielded Star', 'SSTAR']);
-    for (const event of events) {
+  it('publishes name, symbol and decimals as three calls, one shielded-kind declaration each', async () => {
+    const c = await shieldedToken();
+    const declarations = [];
+    for (const args of standardFields('Shielded Star', 'SSTAR', 6)) {
+      const { events, packages } = await c.call('setMetadata', ...args);
+      // UC-1: one call (one intent) = one package = one declaration.
+      expect(events).toHaveLength(1);
+      expect(packages).toHaveLength(1);
+      declarations.push(packages[0]!);
+    }
+
+    expect(declarations.map((e) => e.keyText)).toEqual(['name', 'symbol', 'decimals']);
+    expect(declarations.slice(0, 2).map((e) => e.valueText)).toEqual(['Shielded Star', 'SSTAR']);
+    for (const event of declarations) {
       expect(event.eventName).toBe(EVENT_NAME);
       expect(event.kind).toBe(KIND_SHIELDED);
       expect(hex(event.domainSep)).toBe(hex(SSTAR_DOMAIN));
       expect(event.payload).toHaveLength(256);
+      expect(event.parts).toBe(1);
       expect(validateTokenMetadataEvent(event)).toEqual({ outcome: 'accepted' });
     }
-    // MIP Appendix A: name and symbol are UTF-8 strings, decimals an integer.
-    expect(events.map((e) => e.valType)).toEqual([
-      VAL_TYPE_STRING,
-      VAL_TYPE_STRING,
-      VAL_TYPE_INTEGER,
-    ]);
-    // decimals is `Uint<128>` (MIP Appendix A's recommended width): val-len 16,
-    // little-endian, so the number is in the low byte — never the digit's text.
-    expect(events[2].len).toBe(16);
-    expect(hex(events[2].valueBytes)).toBe('06000000000000000000000000000000');
-    expect(decodeInteger(events[2].valueBytes)).toBe(6n);
+    expect(declarations.map((e) => e.valType)).toEqual([VAL_TYPE_STRING, VAL_TYPE_STRING, VAL_TYPE_INTEGER]);
+    // decimals: val-len 16 as a little-endian Uint<16> (0x10 0x00), the number in the low byte.
+    expect([declarations[2]!.payload[66], declarations[2]!.payload[67]]).toEqual([16, 0]);
+    expect(hex(declarations[2]!.valueBytes)).toBe('06000000000000000000000000000000');
+    expect(decodeInteger(declarations[2]!.valueBytes)).toBe(6n);
   });
 
-  it('refuses to publish twice', async () => {
+  it('refuses a one-part value longer than 188 bytes', async () => {
     const c = await shieldedToken();
-    await c.call('publishMetadata');
-    await expect(c.call('publishMetadata')).rejects.toThrow(/already published/);
+    await expect(
+      c.call('setMetadata', pad(32, 'description'), BigInt(VAL_TYPE_STRING), 189n, value188('x')),
+    ).rejects.toThrow(/at most 188 bytes/);
   });
 
   it('mints the colour an outside observer derives from (domainSep, address)', async () => {
@@ -182,7 +208,7 @@ describe('NativeShieldedToken', () => {
     expect(hex(circuitColor as Uint8Array)).toBe(hex(derived));
 
     const nonce = pad(32, 'sstar-mint-1');
-    const { result, effects } = await c.call('mint', zswapRecipient('holder-1'), 5_000_000n, nonce);
+    const { result, effects } = await c.call('mint', zswapKey('holder-1'), 5_000_000n, nonce);
     const coin = result as { nonce: Uint8Array; color: Uint8Array; value: bigint };
     expect(hex(coin.color)).toBe(hex(derived));
     expect(coin.value).toBe(5_000_000n);
@@ -190,14 +216,14 @@ describe('NativeShieldedToken', () => {
     expect(mintValues(effects, 'unshieldedMints')).toEqual([]);
   });
 
-  it('lets the owner update a key and nobody else', async () => {
+  it('lets the emitter update a key and nobody else', async () => {
     const c = await shieldedToken();
     const { events } = await c.call(
       'setMetadata',
       pad(32, 'name'),
       BigInt(VAL_TYPE_STRING),
       byteLen('Shielded Star!'),
-      value189('Shielded Star!'),
+      value188('Shielded Star!'),
     );
     expect(events).toHaveLength(1);
     expect(events[0].keyText).toBe('name');
@@ -206,10 +232,10 @@ describe('NativeShieldedToken', () => {
     expect(events[0].valueText).toBe('Shielded Star!');
     expect(events[0].kind).toBe(KIND_SHIELDED);
 
-    const stranger = await shieldedToken(STRANGER_SK);
+    const intruder = await shieldedToken(stranger);
     await expect(
-      stranger.call('setMetadata', pad(32, 'name'), BigInt(VAL_TYPE_STRING), 4n, value189('mine')),
-    ).rejects.toThrow(/not the owner/);
+      intruder.call('setMetadata', pad(32, 'name'), BigInt(VAL_TYPE_STRING), 4n, value188('mine')),
+    ).rejects.toThrow(/not the emitter/);
   });
 
   it('keeps the OpenZeppelin metadata circuits working beside the events', async () => {
@@ -227,30 +253,20 @@ describe('NativeShieldedToken', () => {
 
 const UCOM_DOMAIN = pad(32, 'umbra:ucom');
 
-async function unshieldedToken(kind = KIND_UNSHIELDED, secretKey = OWNER_SK) {
-  return deploy<OwnerState>(
-    new NativeUnshielded<OwnerState>(ownableWitnesses),
-    { secretKey },
-    [
-      ownerOf(OWNER_SK),
-      UCOM_DOMAIN,
-      pad(32, 'Unshielded Comet'),
-      16n,
-      pad(32, 'UCOM'),
-      4n,
-      6n,
-      BigInt(kind),
-    ],
-  );
+async function unshieldedToken(kind = KIND_UNSHIELDED, state: State = emitter) {
+  return deploy<State>(new NativeUnshielded<State>(witnesses), state, [EMITTER_HASH, UCOM_DOMAIN, 6n, BigInt(kind)]);
 }
 
 describe('NativeUnshieldedToken', () => {
   it('publishes with the unshielded kind byte and mints an unshielded effect', async () => {
     const c = await unshieldedToken();
-    const { events } = await c.call('publishMetadata');
-    expect(events.map((e) => e.keyText)).toEqual(['name', 'symbol', 'decimals']);
-    expect(events.every((e) => e.kind === KIND_UNSHIELDED)).toBe(true);
-    expect(events[0].valueText).toBe('Unshielded Comet');
+    const declared = [];
+    for (const args of standardFields('Unshielded Comet', 'UCOM', 6)) {
+      declared.push(...(await c.call('setMetadata', ...args)).packages);
+    }
+    expect(declared.map((e) => e.keyText)).toEqual(['name', 'symbol', 'decimals']);
+    expect(declared.every((e) => e.kind === KIND_UNSHIELDED)).toBe(true);
+    expect(declared[0]!.valueText).toBe('Unshielded Comet');
 
     const { result, effects } = await c.call('mint', userRecipient('holder-2'), 1_000n);
     expect(hex(result as Uint8Array)).toBe(hex(deriveColor(UCOM_DOMAIN, c.address)));
@@ -272,9 +288,12 @@ describe('NativeUnshieldedToken', () => {
 
   it('can be deployed as the Ledger Liar: describes kind 2, mints kind 0', async () => {
     const c = await unshieldedToken(KIND_LEDGER_FLAG);
-    const { events } = await c.call('publishMetadata');
-    expect(events.every((e) => e.kind === KIND_LEDGER_FLAG)).toBe(true);
-    expect(events.every((e) => validateTokenMetadataEvent(e).outcome === 'accepted')).toBe(true);
+    const declared = [];
+    for (const args of standardFields('Ledger Liar', 'LLIAR', 6)) {
+      declared.push(...(await c.call('setMetadata', ...args)).packages);
+    }
+    expect(declared.every((e) => e.kind === KIND_LEDGER_FLAG)).toBe(true);
+    expect(declared.every((e) => validateTokenMetadataEvent(e).outcome === 'accepted')).toBe(true);
 
     // ...and it still mints for real. Under MIP section 4 the full kind byte is
     // the identity, so this is not a contradiction to flag: it is two rows, an
@@ -282,6 +301,13 @@ describe('NativeUnshieldedToken', () => {
     // (MIP sections 6.3 and 7.2). The mint is never hidden by the declaration.
     const { effects } = await c.call('mint', userRecipient('holder-3'), 42n);
     expect(mintValues(effects, 'unshieldedMints')).toEqual([42n]);
+  });
+
+  it('refuses a stranger’s declaration', async () => {
+    const c = await unshieldedToken(KIND_UNSHIELDED, stranger);
+    await expect(
+      c.call('setMetadata', pad(32, 'name'), BigInt(VAL_TYPE_STRING), 4n, value188('mine')),
+    ).rejects.toThrow(/not the emitter/);
   });
 });
 
@@ -291,37 +317,26 @@ describe('NativeUnshieldedToken', () => {
 
 const DAUR_DOMAIN = pad(32, 'umbra:daur');
 
-async function dualToken(secretKey = OWNER_SK) {
-  return deploy<OwnerState>(
-    new NativeDual<OwnerState>(ownableWitnesses),
-    { secretKey },
-    [
-      ownerOf(OWNER_SK),
-      DAUR_DOMAIN,
-      pad(32, 'Dual Aurora'),
-      11n,
-      pad(32, 'DAUR'),
-      4n,
-      6n,
-    ],
-  );
+async function dualToken(state: State = emitter) {
+  return deploy<State>(new NativeDual<State>(witnesses), state, [EMITTER_HASH, DAUR_DOMAIN, 6n]);
 }
 
 describe('NativeDualToken', () => {
-  it('publishes each kind separately, three events at a time', async () => {
+  it('describes each kind separately, one declaration per call', async () => {
     const c = await dualToken();
-    const unshielded = await c.call('publishUnshielded');
-    const shielded = await c.call('publishShielded');
+    const unshielded = [];
+    const shielded = [];
+    for (const args of standardFields('Dual Aurora', 'DAUR', 6)) {
+      unshielded.push(...(await c.call('setMetadata', BigInt(KIND_UNSHIELDED), ...args)).packages);
+      shielded.push(...(await c.call('setMetadata', BigInt(KIND_SHIELDED), ...args)).packages);
+    }
 
-    expect(unshielded.events).toHaveLength(3);
-    expect(shielded.events).toHaveLength(3);
-    expect(unshielded.events.every((e) => e.kind === KIND_UNSHIELDED)).toBe(true);
-    expect(shielded.events.every((e) => e.kind === KIND_SHIELDED)).toBe(true);
+    expect(unshielded).toHaveLength(3);
+    expect(shielded).toHaveLength(3);
+    expect(unshielded.every((e) => e.kind === KIND_UNSHIELDED)).toBe(true);
+    expect(shielded.every((e) => e.kind === KIND_SHIELDED)).toBe(true);
     // One domain separator, so one colour value, described twice.
-    expect(hex(unshielded.events[0].domainSep)).toBe(hex(shielded.events[0].domainSep));
-
-    await expect(c.call('publishUnshielded')).rejects.toThrow(/already published/);
-    await expect(c.call('publishShielded')).rejects.toThrow(/already published/);
+    expect(hex(unshielded[0]!.domainSep)).toBe(hex(shielded[0]!.domainSep));
   });
 
   it('mints one colour in two value domains', async () => {
@@ -338,7 +353,7 @@ describe('NativeDualToken', () => {
     expect(mintValues(unshielded.effects, 'unshieldedMints')).toEqual([20n]);
   });
 
-  it('updates one kind at a time', async () => {
+  it('updates one kind at a time, emitter only', async () => {
     const c = await dualToken();
     const { events } = await c.call(
       'setMetadata',
@@ -346,11 +361,16 @@ describe('NativeDualToken', () => {
       pad(32, 'description'),
       BigInt(VAL_TYPE_STRING),
       6n,
-      value189('aurora'),
+      value188('aurora'),
     );
     expect(events[0].kind).toBe(KIND_SHIELDED);
     expect(events[0].keyText).toBe('description');
     expect(events[0].valueText).toBe('aurora');
+
+    const intruder = await dualToken(stranger);
+    await expect(
+      intruder.call('setMetadata', BigInt(KIND_SHIELDED), pad(32, 'name'), BigInt(VAL_TYPE_STRING), 1n, value188('x')),
+    ).rejects.toThrow(/not the emitter/);
   });
 });
 
@@ -360,12 +380,8 @@ describe('NativeDualToken', () => {
 
 const PIECES = ['orion', 'lyra', 'cygnus'] as const;
 
-async function collection(secretKey = OWNER_SK) {
-  return deploy<OwnerState>(
-    new Collection<OwnerState>(ownableWitnesses),
-    { secretKey },
-    [ownerOf(OWNER_SK), 'Constellations', 'CNST', pad(32, 'CNST'), 4n, 0n],
-  );
+async function collection(state: State = emitter) {
+  return deploy<State>(new Collection<State>(witnesses), state, [EMITTER_HASH, 'Constellations', 'CNST', 0n]);
 }
 
 describe('ShieldedCollection', () => {
@@ -381,7 +397,7 @@ describe('ShieldedCollection', () => {
       const { result, effects } = await c.call(
         'mintPiece',
         domain,
-        zswapRecipient(`collector-${piece}`),
+        zswapKey(`collector-${piece}`),
         pad(32, `cnst:${piece}:1`),
       );
       const coin = result as { color: Uint8Array; value: bigint };
@@ -395,30 +411,29 @@ describe('ShieldedCollection', () => {
     expect((await c.call('mintedPieces')).result).toBe(BigInt(PIECES.length));
   });
 
-  it('describes a piece with its own name and the family symbol and decimals', async () => {
+  it('describes a piece with its own name and the family symbol and decimals, one call each', async () => {
     const c = await collection();
     const domain = pad(32, 'cnst:orion');
     const pieceName = 'Constellations · Orion'; // the middle dot is 2 UTF-8 bytes
-    const { events } = await c.call('publishPiece', domain, pad(32, pieceName), byteLen(pieceName));
+    const declared = [];
+    for (const args of standardFields(pieceName, 'CNST', 0)) {
+      declared.push(...(await c.call('setPieceTrait', domain, ...args)).packages);
+    }
 
-    expect(events).toHaveLength(3);
-    expect(events.map((e) => e.keyText)).toEqual(['name', 'symbol', 'decimals']);
-    expect(events[0].valueText).toBe(pieceName);
-    expect(events[1].valueText).toBe('CNST');
+    expect(declared).toHaveLength(3);
+    expect(declared.map((e) => e.keyText)).toEqual(['name', 'symbol', 'decimals']);
+    expect(declared[0]!.valueText).toBe(pieceName);
+    expect(declared[1]!.valueText).toBe('CNST');
     // 0 decimals as `Uint<128>`: sixteen NUL bytes, val-len 16.
-    expect(events[2].len).toBe(16);
-    expect(events[2].valueBytes).toHaveLength(16);
-    expect(decodeInteger(events[2].valueBytes)).toBe(0n);
-    expect(events.map((e) => e.valType)).toEqual([
-      VAL_TYPE_STRING,
-      VAL_TYPE_STRING,
-      VAL_TYPE_INTEGER,
-    ]);
-    expect(events.every((e) => hex(e.domainSep) === hex(domain))).toBe(true);
-    expect(events.every((e) => e.kind === KIND_SHIELDED)).toBe(true);
+    expect(declared[2]!.len).toBe(16);
+    expect(declared[2]!.valueBytes).toHaveLength(16);
+    expect(decodeInteger(declared[2]!.valueBytes)).toBe(0n);
+    expect(declared.map((e) => e.valType)).toEqual([VAL_TYPE_STRING, VAL_TYPE_STRING, VAL_TYPE_INTEGER]);
+    expect(declared.every((e) => hex(e.domainSep) === hex(domain))).toBe(true);
+    expect(declared.every((e) => e.kind === KIND_SHIELDED)).toBe(true);
   });
 
-  it('carries the tokenUri and arbitrary traits per piece, owner only', async () => {
+  it('carries the tokenUri and arbitrary traits per piece, emitter only', async () => {
     const c = await collection();
     const domain = pad(32, 'cnst:orion');
     const uri = 'http://localhost:10020/constellations/orion';
@@ -429,7 +444,7 @@ describe('ShieldedCollection', () => {
       pad(32, 'tokenUri'),
       BigInt(VAL_TYPE_URI),
       byteLen(uri),
-      value189(uri),
+      value188(uri),
     );
     expect(published.events[0].keyText).toBe('tokenUri');
     expect(published.events[0].valType).toBe(VAL_TYPE_URI);
@@ -437,8 +452,8 @@ describe('ShieldedCollection', () => {
 
     // EIP-7496 dynamic trait: the last write is the one that counts.
     // Q6: magnitude is a decimal with a fraction, so it travels as text (type 1).
-    const first = await c.call('setPieceTrait', domain, pad(32, 'magnitude'), BigInt(VAL_TYPE_STRING), 4n, value189('1.25'));
-    const second = await c.call('setPieceTrait', domain, pad(32, 'magnitude'), BigInt(VAL_TYPE_STRING), 4n, value189('0.50'));
+    const first = await c.call('setPieceTrait', domain, pad(32, 'magnitude'), BigInt(VAL_TYPE_STRING), 4n, value188('1.25'));
+    const second = await c.call('setPieceTrait', domain, pad(32, 'magnitude'), BigInt(VAL_TYPE_STRING), 4n, value188('0.50'));
     expect(first.events[0].valueText).toBe('1.25');
     expect(second.events[0].valueText).toBe('0.50');
     expect(first.events[0].valType).toBe(VAL_TYPE_STRING);
@@ -451,19 +466,16 @@ describe('ShieldedCollection', () => {
       pad(32, 'metadata'),
       BigInt(VAL_TYPE_JSON),
       byteLen(json),
-      value189(json),
+      value188(json),
     );
     expect(meta.events[0].valType).toBe(VAL_TYPE_JSON);
     expect(JSON.parse(meta.events[0].valueText)).toEqual({ collection: 'Constellations' });
     expect(validateTokenMetadataEvent(meta.events[0])).toEqual({ outcome: 'accepted' });
 
-    const stranger = await collection(STRANGER_SK);
+    const intruder = await collection(stranger);
     await expect(
-      stranger.call('setPieceTrait', domain, pad(32, 'magnitude'), BigInt(VAL_TYPE_STRING), 1n, value189('9')),
-    ).rejects.toThrow(/not the owner/);
-    await expect(
-      stranger.call('publishPiece', domain, pad(32, 'Stolen'), 6n),
-    ).rejects.toThrow(/not the owner/);
+      intruder.call('setPieceTrait', domain, pad(32, 'magnitude'), BigInt(VAL_TYPE_STRING), 1n, value188('9')),
+    ).rejects.toThrow(/not the emitter/);
   });
 });
 
@@ -473,42 +485,33 @@ describe('ShieldedCollection', () => {
 
 const LSUN_DOMAIN = pad(32, 'umbra:lsun');
 
-async function ledgerToken(secretKey = OWNER_SK) {
-  return deploy<OwnerState>(
-    new LedgerTokenContract<OwnerState>({
-      ...ownableWitnesses,
-      wit_FungibleTokenSK: ({ privateState }: { privateState: OwnerState }): [OwnerState, Uint8Array] => [
-        privateState,
-        privateState.secretKey,
-      ],
-    } as never),
-    { secretKey },
-    [
-      ownerOf(OWNER_SK),
-      LSUN_DOMAIN,
-      'Ledger Sun',
-      pad(32, 'Ledger Sun'),
-      10n,
-      'LSUN',
-      pad(32, 'LSUN'),
-      4n,
-      6n,
-    ],
-  );
+async function ledgerToken(state: State = emitter) {
+  return deploy<State>(new LedgerTokenContract<State>(witnesses as never), state, [
+    EMITTER_HASH,
+    ownerOf(OWNER_SK),
+    LSUN_DOMAIN,
+    'Ledger Sun',
+    'LSUN',
+    6n,
+  ]);
 }
 
 describe('LedgerToken', () => {
   it('publishes with the ledger kind byte — the only way this token can be seen', async () => {
     const c = await ledgerToken();
-    const { events, effects } = await c.call('publishMetadata');
+    const declared = [];
+    for (const args of standardFields('Ledger Sun', 'LSUN', 6)) {
+      const { packages, effects } = await c.call('setMetadata', ...args);
+      declared.push(...packages);
+      // Nothing is minted at the protocol level, ever.
+      expect(mintValues(effects, 'shieldedMints')).toEqual([]);
+      expect(mintValues(effects, 'unshieldedMints')).toEqual([]);
+    }
 
-    expect(events).toHaveLength(3);
-    expect(events.every((e) => e.kind === KIND_LEDGER_FLAG)).toBe(true);
-    expect(events[0].valueText).toBe('Ledger Sun');
-    expect(hex(events[0].domainSep)).toBe(hex(LSUN_DOMAIN));
-    // Nothing is minted at the protocol level, ever.
-    expect(mintValues(effects, 'shieldedMints')).toEqual([]);
-    expect(mintValues(effects, 'unshieldedMints')).toEqual([]);
+    expect(declared).toHaveLength(3);
+    expect(declared.every((e) => e.kind === KIND_LEDGER_FLAG)).toBe(true);
+    expect(declared[0]!.valueText).toBe('Ledger Sun');
+    expect(hex(declared[0]!.domainSep)).toBe(hex(LSUN_DOMAIN));
   });
 
   it('moves balances in contract state and produces no mint effect', async () => {
@@ -529,7 +532,7 @@ describe('LedgerToken', () => {
     expect((await c.call('balanceOf', account('recipient'))).result).toBe(250_000n);
   });
 
-  it('renames itself through an owner-only update', async () => {
+  it('renames itself through an emitter-only declaration; minting stays owner-only', async () => {
     const c = await ledgerToken();
     const renamed = 'Ledger Moon (renamed)';
     const { events } = await c.call(
@@ -537,15 +540,15 @@ describe('LedgerToken', () => {
       pad(32, 'name'),
       BigInt(VAL_TYPE_STRING),
       byteLen(renamed),
-      value189(renamed),
+      value188(renamed),
     );
     expect(events[0].valueText).toBe(renamed);
     expect(events[0].kind).toBe(KIND_LEDGER_FLAG);
 
-    const stranger = await ledgerToken(STRANGER_SK);
+    const intruder = await ledgerToken(stranger);
     await expect(
-      stranger.call('setMetadata', pad(32, 'name'), BigInt(VAL_TYPE_STRING), 4n, value189('mine')),
-    ).rejects.toThrow(/not the owner/);
-    await expect(stranger.call('mint', account('x'), 1n)).rejects.toThrow(/not the owner/);
+      intruder.call('setMetadata', pad(32, 'name'), BigInt(VAL_TYPE_STRING), 4n, value188('mine')),
+    ).rejects.toThrow(/not the emitter/);
+    await expect(intruder.call('mint', account('x'), 1n)).rejects.toThrow(/not the owner/);
   });
 });

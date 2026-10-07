@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// GENERATED FILE — do not edit. Produced by scripts/generate-literal-contracts.ts from
+// deployments/reference-set.json row "LLIAR", MIP-18 variant:
+// LLIAR18 (Ledger Liar · MIP-18). Source of truth for its `repository` declaration:
+// https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/LLIAR18.compact
+//
+// Ledger Liar · MIP-18 (LLIAR18), 6 decimals, kind byte 2, template
+// NativeUnshieldedToken. Every TokenMetadata payload below is a compile-time literal (MIP-0018 on
+// the UC-1 layout: 2-byte little-endian val-len, value from offset 68), so an emitting
+// circuit costs a few rows per event plus the emitter-secret check (~4 100 rows, k=13)
+// instead of the ~120 000 rows per runtime event the parameterised templates in contracts/
+// pay — see TOKEN-METADATA.md "Circuit cost". Only the emitter (the holder of the secret
+// whose hash the constructor stores) can call an emitting circuit.
+//
+// Circuits the deployment calls, in order:
+//   publishName (1 event)
+//   publishSymbol (1 event)
+//   publishDecimals (1 event)
+//   publishRepository (1 event)
+//   mint
+
+pragma language_version >= 0.26.0;
+
+import CompactStandardLibrary;
+import "../TokenMetadata" prefix TM_;
+
+export { ContractAddress, Either, Maybe, UserAddress, TM_emitterSecretHash };
+
+/**
+ * @param {Bytes<32>} emitterSecretHash - `TM_emitterSecretHashOf(secret)`, computed off chain;
+ *   every emitting circuit proves knowledge of `secret` through the `emitterSecret` witness.
+ */
+constructor(emitterSecretHash: Bytes<32>) {
+  TM_initializeEmitter(emitterSecretHash);
+}
+
+/** How many mints this contract has made, for a cheap read-back after deployment. */
+export ledger _mints: Counter;
+
+/** The domain separator this contract mints and describes under. */
+export circuit domainSep(): Bytes<32> {
+  return pad(32, "umbra:lliar18");
+}
+
+/** The token's colour: `tokenType(domainSep, this contract)`. */
+export circuit tokenColor(): Bytes<32> {
+  return tokenType(pad(32, "umbra:lliar18"), kernel.self());
+}
+
+/** The kind byte this contract declares (see MIP section 3). */
+export circuit kind(): Uint<8> {
+  return 2;
+}
+
+export circuit decimals(): Uint<8> {
+  return 6;
+}
+
+export circuit mints(): Uint<64> {
+  return _mints.read() as Uint<64>;
+}
+
+/**
+ * @description publishMetadata — one declaration, one TokenMetadata event, every byte a compile-time literal. Emitter only.
+ */
+export circuit publishName(): [] {
+  TM_assertEmitter();
+  // name = "Ledger Liar · MIP-18" (val-type 1 string, val-len 21)
+  TM_emitTokenMetadata(pad(32, "umbra:lliar18"), 2, pad(32, "name"), 1, 21, Bytes[
+    0x4c, 0x65, 0x64, 0x67, 0x65, 0x72, 0x20, 0x4c, 0x69, 0x61, 0x72, 0x20,
+    0xc2, 0xb7, 0x20, 0x4d, 0x49, 0x50, 0x2d, 0x31, 0x38, ...pad(167, "")
+  ]);
+}
+
+/**
+ * @description publishMetadata — one declaration, one TokenMetadata event, every byte a compile-time literal. Emitter only.
+ */
+export circuit publishSymbol(): [] {
+  TM_assertEmitter();
+  // symbol = "LLIAR18" (val-type 1 string, val-len 7)
+  TM_emitTokenMetadata(pad(32, "umbra:lliar18"), 2, pad(32, "symbol"), 1, 7, pad(188, "LLIAR18"));
+}
+
+/**
+ * @description publishMetadata — one declaration, one TokenMetadata event, every byte a compile-time literal. Emitter only.
+ */
+export circuit publishDecimals(): [] {
+  TM_assertEmitter();
+  // decimals = "6" (val-type 2 integer, val-len 16)
+  TM_emitTokenMetadata(pad(32, "umbra:lliar18"), 2, pad(32, "decimals"), 2, 16, Bytes[0x06, ...pad(187, "")]);
+}
+
+/**
+ * @description publishRepository — one declaration, one TokenMetadata event, every byte a compile-time literal. Emitter only.
+ */
+export circuit publishRepository(): [] {
+  TM_assertEmitter();
+  // repository = "https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/LLIAR18.compact" (val-type 4 URI, val-len 101)
+  TM_emitTokenMetadata(pad(32, "umbra:lliar18"), 2, pad(32, "repository"), 4, 101, pad(188, "https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated/LLIAR18.compact"));
+}
+
+/**
+ * @description Mints `amount` of this token to `recipient` as an unshielded UTxO.
+ * @return {Bytes<32>} - The colour actually minted.
+ */
+export circuit mint(
+  recipient: Either<ContractAddress, UserAddress>,
+  amount: Uint<64>
+): Bytes<32> {
+  assert(amount > 0, "amount must be positive");
+  _mints.increment(1);
+  return mintUnshieldedToken(pad(32, "umbra:lliar18"), disclose(amount), disclose(recipient));
+}

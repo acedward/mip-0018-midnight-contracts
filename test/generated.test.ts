@@ -10,7 +10,8 @@
  * simulator and comparing all 256 bytes is the cheapest way to know they cannot.
  *
  * It also pins the property Q13 rests on: the bytes a literal contract emits are
- * indistinguishable from the bytes the parameterised template in `contracts/` emits.
+ * indistinguishable from the bytes the parameterised template in `contracts/` emits —
+ * and that only the emitter (spec 00024 Q12) can make a generated contract emit.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -19,11 +20,19 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_INTEGER_LEN,
   EVENT_NAME,
-  MAX_VALUE_LEN,
+  HEADER_SIZE,
+  ONE_PART_VALUE_SIZE,
   PAYLOAD_SIZE,
+  STRANGER_EMITTER_SECRET,
+  TEST_EMITTER_SECRET,
+  VAL_TYPE_INTEGER,
   VAL_TYPE_NULL,
+  VAL_TYPE_STRING,
   decodeInteger,
   deploy,
+  emitterSecretHashOf,
+  emitterWitnesses,
+  encodeInteger,
   hex,
   pad,
   validateTokenMetadataEvent,
@@ -38,12 +47,20 @@ interface MatrixEvent {
   key: string;
   valType: number;
   len: number;
+  /** UC-1: the events (parts) the declaration's package takes. */
+  parts: number;
+  /** The value region: the value, NUL-padded to 256·parts − 68 bytes. */
   value: string;
+  /** The exact package bytes, 256·parts. */
+  payload: string;
   text: string | null;
 }
 interface MatrixStep {
   kind: string;
   circuit: string;
+  /** Emit steps (UC-1): the step's one package — its part count and exact bytes. */
+  parts?: number;
+  payload?: string;
   events?: MatrixEvent[];
 }
 interface MatrixRow {
@@ -66,18 +83,120 @@ const referenceSet = JSON.parse(
   readFileSync(join(ROOT, 'deployments', 'reference-set.json'), 'utf8'),
 ) as { rows: { id: string }[] };
 
+/** Spec 00024 §6.A: this repository deploys the `18` variant of every reference row. */
+const VARIANT = '18';
+const REPOSITORY_BLOB = 'https://github.com/acedward/mip-0018-midnight-contracts/blob/main/contracts/generated';
+
 describe('generated-matrix.json', () => {
-  it('covers every row of the reference set', () => {
-    expect(matrix.rows.map((row) => row.id)).toEqual(referenceSet.rows.map((row) => row.id));
+  it('covers every row of the reference set, as its MIP-18 variant', () => {
+    expect(matrix.rows.map((row) => row.id)).toEqual(referenceSet.rows.map((row) => `${row.id}${VARIANT}`));
+    for (const row of matrix.rows) {
+      expect(row.contract, row.id).toBe(row.id);
+      expect(row.symbol.endsWith(VARIANT), row.id).toBe(true);
+      // MIP Appendix A: a symbol is at most 32 bytes.
+      expect(Buffer.byteLength(row.symbol), row.id).toBeLessThanOrEqual(32);
+      expect(row.name, row.id).toMatch(/ · MIP-18$/);
+    }
   });
 
-  it('never exceeds the MIP’s 189-byte value field and always declares a val-type', () => {
+  it('puts ONE declaration in every emitting circuit (UC-1: one declaration per intent)', () => {
+    for (const row of matrix.rows) {
+      for (const step of row.steps.filter((s) => s.kind === 'emit')) {
+        const where = `${row.id}/${step.circuit}`;
+        expect(step.events, where).toHaveLength(1);
+        expect(step.parts, where).toBe(step.events![0]!.parts);
+        expect(step.payload, where).toBe(step.events![0]!.payload);
+      }
+      // Every declaration is its own circuit (spec 00024 Q20 (a): collections too).
+      const circuits = row.steps.filter((s) => s.kind === 'emit').map((s) => s.circuit);
+      expect(new Set(circuits).size, `${row.id} declaration circuits are unique`).toBe(circuits.length);
+    }
+  });
+
+  it('declares the contract’s own source as `repository` (val-type 4) for every token it describes', () => {
+    for (const row of matrix.rows) {
+      const repositories = row.steps.flatMap((step) => (step.events ?? []).filter((e) => e.key === 'repository'));
+      // `repository` where possible (spec 00024 Q19 (b)): a row that declares nothing at all
+      // (SGHOST18, minted only) has none; every other row has at least one.
+      const declares = row.steps.some((step) => (step.events ?? []).length > 0);
+      expect(repositories.length > 0, row.id).toBe(declares);
+      for (const event of repositories) {
+        expect(event.valType, row.id).toBe(4);
+        expect(event.text, row.id).toBe(`${REPOSITORY_BLOB}/${row.contract}.compact`);
+        expect(event.parts, row.id).toBe(1);
+      }
+      // Every (domainSep, kind) this row declares anything for also has its repository.
+      const declared = new Set(row.steps.flatMap((s) => (s.events ?? []).map((e) => `${e.domainSep}:${e.kind}`)));
+      const covered = new Set(repositories.map((e) => `${e.domainSep}:${e.kind}`));
+      expect([...declared].sort(), row.id).toEqual([...covered].sort());
+    }
+  });
+
+  it('keeps SGHOST18 minted only: no declaration at all, not even `repository` (Q19 (b))', () => {
+    const ghost = matrix.rows.find((row) => row.id === 'SGHOST18')!;
+    expect(ghost.steps.map((s) => `${s.kind}:${s.circuit}`)).toEqual(['mint:mint']);
+    expect(ghost.steps.flatMap((s) => s.events ?? [])).toEqual([]);
+  });
+
+  it('keeps one literal circuit per declaration in the collection too (spec 00024 Q20 (a))', () => {
+    const proven = (contract: string) =>
+      (
+        JSON.parse(readFileSync(join(ROOT, 'contracts', 'managed', contract, 'compiler', 'contract-info.json'), 'utf8')) as {
+          circuits: { name: string; proof: boolean }[];
+        }
+      ).circuits
+        .filter((c) => c.proof)
+        .map((c) => c.name);
+    const cnst = matrix.rows.find((row) => row.id === 'CNST18')!;
+    const declarations = cnst.steps.filter((s) => s.kind === 'emit');
+    expect(declarations).toHaveLength(36);
+    // No selector argument: every declaration names its piece and key (publishOrionMagnitude3 …).
+    expect(declarations.map((s) => s.circuit)).toContain('publishOrionMagnitude3');
+    expect(declarations.every((s) => /^(publish|clear)(Orion|Lyra|Cygnus|Vega|Altair)[A-Z]/.test(s.circuit))).toBe(true);
+    // 36 declaration circuits + mintPiece, mintedPieces, tokenColor: the one contract whose
+    // keys do not fit one local deploy, so scripts/deploy-and-publish.ts stages it.
+    expect(new Set(proven('CNST18'))).toEqual(new Set([...declarations.map((s) => s.circuit), 'mintPiece', 'mintedPieces', 'tokenColor']));
+    for (const row of matrix.rows.filter((r) => r.id !== 'CNST18')) {
+      expect(proven(row.contract).length, row.id).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it('carries the long values of spec 00024 §6.A as multi-part declarations', () => {
+    const find = (id: string, key: string) =>
+      matrix.rows
+        .find((row) => row.id === id)!
+        .steps.flatMap((step) => (step.events ?? []).map((event) => ({ step, event })))
+        .filter(({ event }) => event.key === key);
+    // SNEB18: a ~700-byte `metadata` JSON document in three parts.
+    const [metadata] = find('SNEB18', 'metadata');
+    expect(metadata!.event.parts).toBe(3);
+    expect(metadata!.event.len).toBeGreaterThan(2 * PAYLOAD_SIZE - HEADER_SIZE);
+    expect(() => JSON.parse(metadata!.event.text!)).not.toThrow();
+    // LMOON18: a Null of `description`, then a ~400-byte `description` in two parts.
+    const descriptions = find('LMOON18', 'description').map(({ event }) => event);
+    expect(descriptions.map((e) => [e.valType, e.parts])).toEqual([
+      [1, 1],
+      [VAL_TYPE_NULL, 1],
+      [1, 2],
+    ]);
+    // CNST18: a ~300-byte trait (Orion's `metadata`) in two parts.
+    const orion = find('CNST18', 'metadata').map(({ event }) => event).filter((e) => e.piece === 'orion');
+    expect(orion.map((e) => e.parts)).toEqual([2]);
+    // Nothing else is long.
+    const longs = matrix.rows.flatMap((row) => row.steps.flatMap((s) => (s.events ?? []).filter((e) => e.parts > 1)));
+    expect(longs).toHaveLength(3);
+  });
+
+  it('sizes every package for its value (UC-1) and always declares a val-type', () => {
     for (const row of matrix.rows) {
       for (const step of row.steps) {
         for (const event of step.events ?? []) {
           const where = `${row.id}/${step.circuit}/${event.key}`;
-          expect(event.len, where).toBeLessThanOrEqual(MAX_VALUE_LEN);
-          expect(event.value.length, where).toBe(MAX_VALUE_LEN * 2);
+          // UC-1: the package holds its value; a long value takes more parts.
+          expect(event.parts, where).toBe(Math.max(1, Math.ceil((HEADER_SIZE + event.len) / PAYLOAD_SIZE)));
+          expect(event.payload.length, where).toBe(event.parts * PAYLOAD_SIZE * 2);
+          expect(event.value.length, where).toBe((event.parts * PAYLOAD_SIZE - HEADER_SIZE) * 2);
+          if (event.parts === 1) expect(event.len, where).toBeLessThanOrEqual(ONE_PART_VALUE_SIZE);
           // MIP section 2.1: 0..5 are defined, 6..255 are reserved.
           expect(event.valType, where).toBeGreaterThanOrEqual(0);
           expect(event.valType, where).toBeLessThanOrEqual(VAL_TYPE_NULL);
@@ -95,6 +214,7 @@ describe('generated-matrix.json', () => {
       decimals: 2,
       metadata: 3,
       tokenUri: 4,
+      repository: 4,
     };
     for (const row of matrix.rows) {
       for (const step of row.steps) {
@@ -124,7 +244,7 @@ describe('generated-matrix.json', () => {
           expect(event.len, where).toBe(DEFAULT_INTEGER_LEN);
           const value = Uint8Array.from(Buffer.from(event.value, 'hex'));
           expect(decodeInteger(value.subarray(0, DEFAULT_INTEGER_LEN)), where).toBe(BigInt(row.decimals));
-          // Every byte past the number is NUL, for the whole 189-byte field.
+          // Every byte past the number is NUL, for the whole 188-byte field.
           expect(value.subarray(1).every((b) => b === 0), where).toBe(true);
         }
       }
@@ -139,8 +259,8 @@ describe('generated-matrix.json', () => {
     expect(nulls.length).toBeGreaterThan(0);
     for (const event of nulls) {
       expect(event.len).toBe(0);
-      // Emitters SHOULD zero the ignored bytes, and this one does: all 189.
-      expect(event.value).toBe('00'.repeat(MAX_VALUE_LEN));
+      // Emitters SHOULD zero the ignored bytes, and this one does: all 188.
+      expect(event.value).toBe('00'.repeat(ONE_PART_VALUE_SIZE));
       expect(event.text).toBeNull();
     }
   });
@@ -166,41 +286,75 @@ describe('generated-matrix.json', () => {
   });
 });
 
+const EMITTER_HASH = emitterSecretHashOf(TEST_EMITTER_SECRET);
+
+/** Deploys a generated contract in the simulator with the emitter secret as private state. */
+async function deployGenerated(contract: string, secret = TEST_EMITTER_SECRET, address?: string) {
+  const { Contract } = (await import(`../contracts/managed/${contract}/contract/index.js`)) as unknown as {
+    Contract: new (witnesses: typeof emitterWitnesses) => never;
+  };
+  return deploy(new Contract(emitterWitnesses) as never, { emitterSecret: secret }, [EMITTER_HASH], {
+    ...(address ? { address } : {}),
+  });
+}
+
 for (const row of matrix.rows) {
   const emitting = row.steps.filter((step) => step.kind === 'emit');
-  if (emitting.length === 0) continue;
 
   describe(`generated ${row.id} (${row.name})`, () => {
-    it('emits exactly the payloads the matrix records', async () => {
-      const { Contract } = (await import(
-        `../contracts/managed/${row.contract}/contract/index.js`
-      )) as unknown as { Contract: new (witnesses: Record<string, never>) => never };
-      const instance = await deploy(new Contract({}) as never, {});
+    it('stores the emitter-secret hash its constructor was given', async () => {
+      const { ledger } = (await import(`../contracts/managed/${row.contract}/contract/index.js`)) as unknown as {
+        ledger: (state: never) => { TM_emitterSecretHash: Uint8Array };
+      };
+      const instance = await deployGenerated(row.contract);
+      expect(hex(ledger(instance.state as never).TM_emitterSecretHash)).toBe(hex(EMITTER_HASH));
+    });
 
-      for (const step of emitting) {
-        const call = await instance.call(step.circuit);
-        const expectedEvents = step.events ?? [];
-        expect(call.events.length, `${row.id}.${step.circuit} event count`).toBe(expectedEvents.length);
+    // A row with no declaration (SGHOST18, minted only — Q19 (b)) has no emitting circuit.
+    if (emitting.length > 0) {
 
-        for (const [index, expected] of expectedEvents.entries()) {
-          const actual = call.events[index]!;
-          const where = `${row.id}.${step.circuit}[${index}] (${expected.key})`;
-          expect(actual.eventName, where).toBe(EVENT_NAME);
-          expect(actual.payload.length, where).toBe(PAYLOAD_SIZE);
-          expect(hex(actual.domainSep), where).toBe(expected.domainSep);
-          expect(actual.kind, where).toBe(expected.kind);
-          expect(actual.keyText, where).toBe(expected.key);
-          expect(actual.valType, where).toBe(expected.valType);
-          expect(actual.len, where).toBe(expected.len);
-          expect(hex(actual.value), where).toBe(expected.value);
-          // Every event the reference set emits must survive transport validation.
-          expect(validateTokenMetadataEvent(actual), where).toEqual({ outcome: 'accepted' });
-          if (expected.text !== null && expected.key !== 'decimals') {
-            expect(actual.valueText, where).toBe(expected.text);
+      it('refuses every emitting circuit to a caller without the emitter secret', async () => {
+        const intruder = await deployGenerated(row.contract, STRANGER_EMITTER_SECRET);
+        for (const step of emitting) {
+          await expect(intruder.call(step.circuit), `${row.id}.${step.circuit}`).rejects.toThrow(/not the emitter/);
+        }
+      });
+
+      it('emits exactly the payloads the matrix records', async () => {
+        const instance = await deployGenerated(row.contract);
+
+        for (const step of emitting) {
+          const call = await instance.call(step.circuit);
+          const expectedEvents = step.events ?? [];
+          const parts = expectedEvents.reduce((n, e) => n + e.parts, 0);
+          expect(call.events.length, `${row.id}.${step.circuit} event count`).toBe(parts);
+          // One declaration per call is ONE package (UC-1): compare the whole package bytes.
+          // A circuit that still folds several one-part declarations is compared per event.
+          const actuals = expectedEvents.length === 1 ? call.packages : call.events;
+          expect(actuals.length, `${row.id}.${step.circuit} declarations`).toBe(expectedEvents.length);
+
+          for (const [index, expected] of expectedEvents.entries()) {
+            const actual = actuals[index]!;
+            const where = `${row.id}.${step.circuit}[${index}] (${expected.key})`;
+            expect(actual.eventName, where).toBe(EVENT_NAME);
+            expect(actual.parts, where).toBe(expected.parts);
+            expect(actual.payload.length, where).toBe(PAYLOAD_SIZE * expected.parts);
+            expect(hex(actual.payload), where).toBe(expected.payload);
+            expect(hex(actual.domainSep), where).toBe(expected.domainSep);
+            expect(actual.kind, where).toBe(expected.kind);
+            expect(actual.keyText, where).toBe(expected.key);
+            expect(actual.valType, where).toBe(expected.valType);
+            expect(actual.len, where).toBe(expected.len);
+            expect(hex(actual.value), where).toBe(expected.value);
+            // Every event the reference set emits must survive transport validation.
+            expect(validateTokenMetadataEvent(actual), where).toEqual({ outcome: 'accepted' });
+            if (expected.text !== null && expected.key !== 'decimals') {
+              expect(actual.valueText, where).toBe(expected.text);
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     it('declares the kind byte and the domain separator the matrix says', async () => {
       const { pureCircuits } = (await import(
@@ -208,6 +362,7 @@ for (const row of matrix.rows) {
       )) as unknown as { pureCircuits: Record<string, () => unknown> };
       // A collection takes its domain per call, so it has no contract-wide `domainSep()`.
       if (row.template !== 'ShieldedCollection') {
+        // The variant's domain separator: `umbra:lsun18`.
         expect(hex(pureCircuits.domainSep!() as Uint8Array)).toBe(
           hex(pad(32, `umbra:${row.symbol.toLowerCase()}`)),
         );
@@ -218,48 +373,41 @@ for (const row of matrix.rows) {
 }
 
 describe('a literal payload is byte-identical to the parameterised template’s', () => {
-  it('SSTAR.publishMetadata equals NativeShieldedToken.publishMetadata', async () => {
-    const generated = (await import('../contracts/managed/SSTAR/contract/index.js')) as unknown as {
-      Contract: new (w: Record<string, never>) => never;
-    };
+  it('SSTAR18’s literal name, symbol and decimals equal NativeShieldedToken.setMetadata’s', async () => {
     const template = (await import(
       '../contracts/managed/NativeShieldedToken/contract/index.js'
-    )) as unknown as { Contract: new (w: Record<string, unknown>) => never };
+    )) as unknown as { Contract: new (w: typeof emitterWitnesses) => never };
 
     const address = '11'.repeat(32);
-    const ownerSecretKey = new Uint8Array(32).fill(7);
-    const witnesses = {
-      wit_OwnableSK: ({ privateState }: { privateState: { secretKey: Uint8Array } }) => [
-        privateState,
-        privateState.secretKey,
-      ],
-    };
-
-    const literal = await deploy(new generated.Contract({}) as never, {}, [], { address });
-    const literalEvents = (await literal.call('publishMetadata')).events;
-
-    const { persistentHash, CompactTypeBytes, CompactTypeVector } = await import(
-      '@midnight-ntwrk/compact-runtime'
+    const literal = await deployGenerated('SSTAR18', TEST_EMITTER_SECRET, address);
+    const sstar = matrix.rows.find((row) => row.id === 'SSTAR18')!;
+    const standard = sstar.steps.filter(
+      (s) => s.kind === 'emit' && ['name', 'symbol', 'decimals'].includes(s.events![0]!.key),
     );
-    const accountId = persistentHash(new CompactTypeVector(1, new CompactTypeBytes(32)), [ownerSecretKey]);
+    const literalEvents = [];
+    for (const step of standard) {
+      literalEvents.push(...(await literal.call(step.circuit)).events);
+    }
+
     const parameterised = await deploy(
-      new template.Contract(witnesses) as never,
-      { secretKey: ownerSecretKey },
-      [
-        { is_left: true, left: accountId, right: { bytes: new Uint8Array(32) } },
-        pad(32, 'umbra:sstar'),
-        'Shielded Star',
-        pad(32, 'Shielded Star'),
-        13n,
-        'SSTAR',
-        pad(32, 'SSTAR'),
-        5n,
-        6n,
-      ],
+      new template.Contract(emitterWitnesses) as never,
+      { emitterSecret: TEST_EMITTER_SECRET },
+      [EMITTER_HASH, pad(32, 'umbra:sstar18'), sstar.name, sstar.symbol, 6n],
       { address },
     );
-    const templateEvents = (await parameterised.call('publishMetadata')).events;
+    const field = (text: string | Uint8Array) => {
+      const out = new Uint8Array(ONE_PART_VALUE_SIZE);
+      out.set(typeof text === 'string' ? new TextEncoder().encode(text) : text);
+      return out;
+    };
+    const byteLength = (text: string) => BigInt(Buffer.byteLength(text));
+    const templateEvents = [
+      ...(await parameterised.call('setMetadata', pad(32, 'name'), BigInt(VAL_TYPE_STRING), byteLength(sstar.name), field(sstar.name))).events,
+      ...(await parameterised.call('setMetadata', pad(32, 'symbol'), BigInt(VAL_TYPE_STRING), byteLength(sstar.symbol), field(sstar.symbol))).events,
+      ...(await parameterised.call('setMetadata', pad(32, 'decimals'), BigInt(VAL_TYPE_INTEGER), 16n, field(encodeInteger(6n)))).events,
+    ];
 
+    expect(literalEvents).toHaveLength(3);
     expect(literalEvents.map((event) => hex(event.payload))).toEqual(
       templateEvents.map((event) => hex(event.payload)),
     );

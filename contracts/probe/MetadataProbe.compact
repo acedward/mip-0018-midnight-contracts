@@ -1,19 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// MetadataProbe — the compile-and-byte-layout proof for the MIP's payload. It
-// is not a token: it exists so a test can call the module directly and assert
-// that `Bytes[...spread]` really produces the 256 bytes of MIP section 2, at
-// the documented offsets (domainSep 0, kind 32, key 33, val-type 65, val-len
-// 66, value 67..255).
+// MetadataProbe — the compile-and-byte-layout proof for the MIP's payload on
+// the UC-1 layout. It is not a token: it exists so a test can call the module
+// directly and assert that `Bytes[...spread]` really produces the 256 bytes of
+// a one-part package at the documented offsets (domainSep 0, kind 32, key 33,
+// val-type 65, val-len 66..67 little-endian, value 68..255).
+//
+// It also proves the multi-part path: one call that emits a head and its parts
+// is ONE package (`publishLongFixture2`/`3`, literal; `publishRaw2`/`3`, raw).
 //
 // It is also the source of the negative corpus: every field is a parameter, so
 // the probe can emit payloads a conforming consumer MUST reject (a reserved
-// val-type, a val-len above 189, an empty key, an unknown kind byte, a JSON
-// fragment, a Null with a non-zero val-len, a `/metadata/` key that is not an
-// RFC 6901 pointer) and the events a consumer MUST ignore rather than reject —
-// a `Misc` event under the pre-MIP name `TokenMetadata`, and one under the
-// `mip-xxxx:token-metadata[v1]` placeholder name the Stagenet reference set was
-// deployed with (MIP section 1: any other name MUST be ignored).
+// val-type, a val-len beyond the package, an empty key, an unknown kind byte, a
+// JSON fragment, a Null with a non-zero val-len, a `/metadata/` key that is not
+// an RFC 6901 pointer) and the events a consumer MUST ignore rather than
+// reject — a `Misc` event under the pre-MIP name `TokenMetadata`, and one under
+// the `mip-xxxx:token-metadata[v1]` placeholder name the Stagenet reference set
+// was deployed with (MIP section 1: any other name MUST be ignored). Those two
+// keep the one-byte `val-len` layout their emitters used.
+//
+// NO EMITTER CHECK, on purpose: this harness must emit arbitrary, deliberately
+// invalid payloads for tests and is never deployed. Every other emitting
+// circuit in this repository checks the emitter secret (TokenMetadata.compact).
 
 pragma language_version >= 0.26.0;
 
@@ -24,64 +32,104 @@ import "../TokenMetadata" prefix TM_;
 export ledger _calls: Counter;
 
 /**
- * @description Emits one arbitrary TokenMetadata event. Everything is a
- * parameter so a test can drive every field, including deliberately invalid
- * ones (a `valLen` above 189, a reserved `valType`, an unknown `kind`) for the
- * indexer's negative fixtures.
+ * @description Emits one arbitrary TokenMetadata event (the head of a package,
+ * `TM_emitHead`). Everything is a parameter so a test can drive every field,
+ * including deliberately invalid ones (a `valLen` beyond the package, a reserved
+ * `valType`, an unknown `kind`) for the indexer's negative fixtures.
  */
 export circuit publishRaw(
   domainSep: Bytes<32>,
   kind: Uint<8>,
   key: Bytes<32>,
   valType: Uint<8>,
-  valLen: Uint<8>,
-  value: Bytes<189>
+  valLen: Uint<16>,
+  value: Bytes<188>
 ): [] {
   _calls.increment(1);
-  TM_emitTokenMetadata(disclose(domainSep), disclose(kind), disclose(key),
-                       disclose(valType), disclose(valLen), disclose(value));
+  TM_emitHead(disclose(domainSep), disclose(kind), disclose(key),
+              disclose(valType), disclose(valLen), disclose(value));
 }
 
 /**
- * @description Emits the three core well-known fields (name, symbol, decimals)
- * for one token: the exact shape a conforming contract's `publishMetadata()`
- * produces.
- */
-export circuit publishStandard(
-  domainSep: Bytes<32>,
-  kind: Uint<8>,
-  name_: Bytes<32>,
-  nameLen: Uint<8>,
-  symbol_: Bytes<32>,
-  symbolLen: Uint<8>,
-  decimals_: Uint<8>
-): [] {
-  _calls.increment(1);
-  TM_emitStandardFields(disclose(domainSep), disclose(kind), disclose(name_),
-                        disclose(nameLen), disclose(symbol_),
-                        disclose(symbolLen), disclose(decimals_));
-}
-
-/**
- * @description Emits three events with fixed literals — the golden fixture the
- * indexer's byte-exact test is recorded from.
+ * @description Emits one fixed, literal one-part declaration — the golden
+ * fixture the byte-exact test is recorded from.
  */
 export circuit publishFixture(): [] {
   _calls.increment(1);
-  TM_emitStandardFields(
-    pad(32, "umbra:probe"),
-    TM_KIND_SHIELDED(),
-    pad(32, "Umbra Probe"), 11,
-    pad(32, "UPROBE"), 6,
-    6
-  );
+  TM_emitTokenMetadata(pad(32, "umbra:probe"), TM_KIND_SHIELDED(), pad(32, "name"),
+                       TM_VAL_TYPE_STRING(), 11, pad(188, "Umbra Probe"));
 }
 
 /**
- * @description Emits a well-formed MIP payload under the PRE-MIP event name
- * `TokenMetadata` (what this repository's 00020 contracts emitted). A MIP
- * consumer must IGNORE it — not store it, not reject it — because the name is
- * not `mip-0018:token-metadata[v1]` (MIP section 1). The name is written here
+ * @description Emits a head and ONE continuation part from one call — a raw
+ * two-part package for the negative corpus (e.g. a declared length beyond the
+ * package, or non-zero bytes after the value). Everything is a parameter.
+ */
+export circuit publishRaw2(
+  domainSep: Bytes<32>,
+  kind: Uint<8>,
+  key: Bytes<32>,
+  valType: Uint<8>,
+  valLen: Uint<16>,
+  valueHead: Bytes<188>,
+  part1: Bytes<256>
+): [] {
+  _calls.increment(1);
+  TM_emitHead(disclose(domainSep), disclose(kind), disclose(key),
+              disclose(valType), disclose(valLen), disclose(valueHead));
+  TM_emitPart(disclose(part1));
+}
+
+/** @description As `publishRaw2`, with two continuation parts: a raw three-part package. */
+export circuit publishRaw3(
+  domainSep: Bytes<32>,
+  kind: Uint<8>,
+  key: Bytes<32>,
+  valType: Uint<8>,
+  valLen: Uint<16>,
+  valueHead: Bytes<188>,
+  part1: Bytes<256>,
+  part2: Bytes<256>
+): [] {
+  _calls.increment(1);
+  TM_emitHead(disclose(domainSep), disclose(kind), disclose(key),
+              disclose(valType), disclose(valLen), disclose(valueHead));
+  TM_emitPart(disclose(part1));
+  TM_emitPart(disclose(part2));
+}
+
+/**
+ * @description One literal THREE-part declaration from one call: `description`
+ * = a 700-byte UTF-8 string, which fills the package exactly (68 + 700 = 768 =
+ * 3 × 256). The module path a long value takes: `emitHead` then `emitPart`s.
+ */
+export circuit publishLongFixture3(): [] {
+  _calls.increment(1);
+  TM_emitHead(pad(32, "umbra:probe"), TM_KIND_SHIELDED(), pad(32, "description"),
+              TM_VAL_TYPE_STRING(), 700,
+              pad(188, "MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent."));
+  TM_emitPart(pad(256, " MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP"));
+  TM_emitPart(pad(256, "-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-0018 UC-1 probe: one declaration, three parts, one intent. MIP-001"));
+}
+
+/**
+ * @description One literal TWO-part declaration from one call: `description` =
+ * a 300-byte UTF-8 string (68 + 300 = 368 of 512 bytes; the last 144 are NUL).
+ */
+export circuit publishLongFixture2(): [] {
+  _calls.increment(1);
+  TM_emitHead(pad(32, "umbra:probe"), TM_KIND_SHIELDED(), pad(32, "description"),
+              TM_VAL_TYPE_STRING(), 300,
+              pad(188, "MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zero padded. MI"));
+  TM_emitPart(pad(256, "P-0018 UC-1 probe: one declaration, two parts, zero padded. MIP-0018 UC-1 probe: one declaration, two parts, zer"));
+}
+
+/**
+ * @description Emits a well-formed payload under the PRE-MIP event name
+ * `TokenMetadata` (what this repository's 00020 contracts emitted), in the
+ * one-byte `val-len` layout of its time. A MIP consumer must IGNORE it — not
+ * store it, not reject it — because the name is not
+ * `mip-0018:token-metadata[v1]` (MIP section 1). The name is written here
  * rather than taken from the module on purpose: the module has exactly one
  * event name and it is the current one.
  */
@@ -105,12 +153,12 @@ export circuit publishLegacyName(
  * @description Emits a payload under `mip-xxxx:token-metadata[v1]`, the
  * PLACEHOLDER name of the #315 draft, which is the name this repository's
  * Stagenet reference set was actually deployed with (commit `1721636`, blocks
- * 508 432 – 508 599). The event name is the layout version (MIP section 8), so
- * a conforming MIP-0018 v1 consumer IGNORES these too — a consumer that also
- * wants to display the legacy deployment must recognise the second name
- * explicitly and validate it under the draft's rules. This circuit exists so
- * that case is real compiled-contract output in the corpus rather than a
- * hand-built payload.
+ * 508 432 – 508 599), in that draft's one-byte `val-len` layout. The event name
+ * is the layout version (MIP section 8), so a conforming MIP-0018 consumer
+ * IGNORES these too — a consumer that also wants to display the legacy
+ * deployment must recognise the second name explicitly and validate it under
+ * the draft's rules. This circuit exists so that case is real compiled-contract
+ * output in the corpus rather than a hand-built payload.
  */
 export circuit publishPreMipName(
   domainSep: Bytes<32>,
